@@ -12,7 +12,9 @@
 // instead of decorating every method.
 #![allow(clippy::unused_async)]
 
+mod clipboard;
 mod keymap;
 mod screen;
 
+pub use self::clipboard::X11Clipboard;
 pub use self::screen::X11Screen;

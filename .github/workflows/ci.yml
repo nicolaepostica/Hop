@@ -43,7 +43,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libx11-dev libxcb1-dev libdbus-1-dev pkg-config xvfb
+          sudo apt-get install -y libx11-dev libxcb1-dev libdbus-1-dev pkg-config xvfb xclip
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
   test:
@@ -62,7 +62,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libx11-dev libxcb1-dev libdbus-1-dev pkg-config xvfb
+          sudo apt-get install -y libx11-dev libxcb1-dev libdbus-1-dev pkg-config xvfb xclip
       - run: cargo build --workspace --all-targets
       - run: cargo nextest run --workspace
 

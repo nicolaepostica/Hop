@@ -12,6 +12,7 @@ use x11rb::protocol::xproto::Window;
 use x11rb::protocol::xtest::ConnectionExt as _;
 use x11rb::rust_connection::RustConnection;
 
+use crate::clipboard::X11Clipboard;
 use crate::keymap::KeyMap;
 
 // X11 event type constants used with `xtest_fake_input`.
@@ -44,6 +45,7 @@ pub struct X11Screen {
     root: Window,
     info: ScreenInfo,
     keymap: KeyMap,
+    clipboard: X11Clipboard,
 }
 
 impl std::fmt::Debug for X11Screen {
@@ -83,11 +85,16 @@ impl X11Screen {
         };
         let root = screen.root;
 
+        // Spawn the clipboard worker on its own connection so
+        // selection round-trips never block the injection path.
+        let clipboard = X11Clipboard::spawn(display)?;
+
         Ok(Self {
             conn: Arc::new(conn),
             root,
             info,
             keymap,
+            clipboard,
         })
     }
 
@@ -162,26 +169,16 @@ impl PlatformScreen for X11Screen {
         id: ClipboardId,
         format: ClipboardFormat,
     ) -> Result<Bytes, PlatformError> {
-        warn!(
-            ?id,
-            ?format,
-            "X11 clipboard read not implemented yet (M4); returning empty"
-        );
-        Ok(Bytes::new())
+        self.clipboard.read(id, format).await
     }
 
     async fn set_clipboard(
         &self,
         id: ClipboardId,
         format: ClipboardFormat,
-        _data: Bytes,
+        data: Bytes,
     ) -> Result<(), PlatformError> {
-        warn!(
-            ?id,
-            ?format,
-            "X11 clipboard write not implemented yet (M4); dropping payload"
-        );
-        Ok(())
+        self.clipboard.write(id, format, data).await
     }
 
     fn screen_info(&self) -> ScreenInfo {
