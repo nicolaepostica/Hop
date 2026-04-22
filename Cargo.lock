@@ -1001,11 +1001,15 @@ dependencies = [
 name = "input-leap-ipc"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "futures",
  "interprocess",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
+ "tokio-util",
  "tracing",
 ]
 
@@ -1187,6 +1191,7 @@ dependencies = [
  "chrono",
  "clap",
  "input-leap-config",
+ "input-leap-ipc",
  "input-leap-net",
  "input-leap-platform",
  "input-leap-platform-x11",

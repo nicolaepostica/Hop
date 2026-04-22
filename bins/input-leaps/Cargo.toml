@@ -17,6 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 input-leap-config   = { workspace = true }
+input-leap-ipc      = { workspace = true }
 input-leap-net      = { workspace = true }
 input-leap-platform = { workspace = true }
 input-leap-server   = { workspace = true }

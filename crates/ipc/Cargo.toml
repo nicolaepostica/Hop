@@ -12,9 +12,16 @@ description = "Local IPC (unix socket / named pipe) between Input Leap daemon an
 workspace = true
 
 [dependencies]
-tokio        = { workspace = true, features = ["rt", "macros", "io-util", "sync"] }
+tokio        = { workspace = true, features = ["rt", "macros", "io-util", "sync", "net"] }
+tokio-util   = { workspace = true, features = ["codec", "rt"] }
 interprocess = { workspace = true }
+futures      = { workspace = true }
+bytes        = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
 tracing      = { workspace = true }
 thiserror    = { workspace = true }
+
+[dev-dependencies]
+tokio    = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+tempfile = { workspace = true }

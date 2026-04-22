@@ -10,10 +10,15 @@ use clap::{Parser, Subcommand};
 use input_leap_config::{
     default_config_path, load_server_settings, ConfigOverrides, ServerSettings,
 };
+use input_leap_ipc::{
+    default_socket_path, protocol::IpcError, IpcHandler, IpcServer, MutateFuture, StatusFuture,
+    StatusReply,
+};
 use input_leap_net::{load_or_generate_cert, Fingerprint, FingerprintDb, PeerEntry};
 use input_leap_server::ServerConfig;
+use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Input Leap server.
 #[derive(Debug, Parser)]
@@ -85,6 +90,15 @@ struct ServerArgs {
     /// Display name advertised to peers. Overrides the file/env setting.
     #[arg(long)]
     name: Option<String>,
+    /// Path to the IPC socket for the GUI to connect to.
+    ///
+    /// Defaults to `<runtime>/input-leap/daemon.sock`. Pass a path or
+    /// use `--no-ipc` to disable the IPC server entirely.
+    #[arg(long, conflicts_with = "no_ipc")]
+    ipc_socket: Option<PathBuf>,
+    /// Disable the GUI IPC server.
+    #[arg(long)]
+    no_ipc: bool,
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -127,6 +141,16 @@ fn resolve_settings(common: &CommonArgs, server: &ServerArgs) -> Result<ServerSe
 }
 
 async fn run_server(common: CommonArgs, server: ServerArgs) -> Result<()> {
+    let ipc_socket: Option<PathBuf> = if server.no_ipc {
+        None
+    } else {
+        Some(
+            server
+                .ipc_socket
+                .clone()
+                .unwrap_or_else(default_socket_path),
+        )
+    };
     let settings = resolve_settings(&common, &server)?;
     info!(
         listen = %settings.listen_addr,
@@ -169,7 +193,121 @@ async fn run_server(common: CommonArgs, server: ServerArgs) -> Result<()> {
         }
     });
 
-    backend::run_server(cfg, shutdown).await
+    // Optional: spawn the GUI IPC server on the daemon socket.
+    let ipc_join = if let Some(socket_path) = ipc_socket {
+        match IpcServer::bind(&socket_path) {
+            Ok(server) => {
+                let state = Arc::new(DaemonIpcState::new(
+                    cfg.listen_addr.to_string(),
+                    cfg.display_name.clone(),
+                    cfg.identity.fingerprint.to_string(),
+                    settings.tls.fingerprint_db.clone(),
+                    &cfg.trusted_peers,
+                ));
+                let shutdown = shutdown.clone();
+                Some(tokio::spawn(async move {
+                    if let Err(err) = server.serve(state, shutdown).await {
+                        warn!(error = %err, "IPC server terminated with error");
+                    }
+                }))
+            }
+            Err(err) => {
+                warn!(error = %err, "failed to start IPC server; continuing without it");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let result = backend::run_server(cfg, shutdown.clone()).await;
+    shutdown.cancel();
+    if let Some(join) = ipc_join {
+        let _ = join.await;
+    }
+    result
+}
+
+/// Thread-safe IPC view of the running daemon.
+///
+/// Exposes read-only status and a mutable trust-store proxy (writes
+/// persist to disk but require a restart to take effect on new TLS
+/// handshakes; live reload of the verifier is a follow-up).
+struct DaemonIpcState {
+    listen_addr: String,
+    display_name: String,
+    local_fingerprint: String,
+    fingerprint_db_path: PathBuf,
+    edits: Mutex<FingerprintDb>,
+}
+
+impl DaemonIpcState {
+    fn new(
+        listen_addr: String,
+        display_name: String,
+        local_fingerprint: String,
+        fingerprint_db_path: PathBuf,
+        initial_snapshot: &Arc<FingerprintDb>,
+    ) -> Self {
+        let initial = (**initial_snapshot).clone();
+        Self {
+            listen_addr,
+            display_name,
+            local_fingerprint,
+            fingerprint_db_path,
+            edits: Mutex::new(initial),
+        }
+    }
+}
+
+impl IpcHandler for DaemonIpcState {
+    fn status(&self) -> StatusFuture<'_> {
+        Box::pin(async move {
+            let count = self.edits.lock().await.len();
+            StatusReply {
+                listen_addr: self.listen_addr.clone(),
+                display_name: self.display_name.clone(),
+                local_fingerprint: self.local_fingerprint.clone(),
+                trusted_peer_count: count,
+            }
+        })
+    }
+
+    fn add_peer(&self, name: String, fingerprint: String) -> MutateFuture<'_> {
+        Box::pin(async move {
+            let parsed: Fingerprint = fingerprint
+                .parse()
+                .map_err(|err| (IpcError::InvalidArgument, format!("bad fingerprint: {err}")))?;
+            let mut db = self.edits.lock().await;
+            let was_new = db.lookup(&parsed).is_none();
+            db.add(PeerEntry {
+                name,
+                fingerprint: parsed,
+                added: Utc::now(),
+            });
+            db.save(&self.fingerprint_db_path).map_err(|err| {
+                (
+                    IpcError::HandlerFailed,
+                    format!("failed to persist DB: {err}"),
+                )
+            })?;
+            Ok(was_new)
+        })
+    }
+
+    fn remove_peer(&self, name: String) -> MutateFuture<'_> {
+        Box::pin(async move {
+            let mut db = self.edits.lock().await;
+            let removed = db.remove(&name);
+            db.save(&self.fingerprint_db_path).map_err(|err| {
+                (
+                    IpcError::HandlerFailed,
+                    format!("failed to persist DB: {err}"),
+                )
+            })?;
+            Ok(removed)
+        })
+    }
 }
 
 fn run_fingerprint(args: FingerprintArgs) -> Result<()> {
@@ -180,6 +318,8 @@ fn run_fingerprint(args: FingerprintArgs) -> Result<()> {
         &ServerArgs {
             listen: None,
             name: None,
+            ipc_socket: None,
+            no_ipc: true,
         },
     )?;
     match args.action {
