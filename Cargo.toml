@@ -48,6 +48,7 @@ input-leap-config     = { path = "crates/config", version = "0.1.0" }
 input-leap-server     = { path = "crates/server", version = "0.1.0" }
 input-leap-client     = { path = "crates/client", version = "0.1.0" }
 input-leap-platform   = { path = "crates/platform/core", version = "0.1.0" }
+input-leap-platform-x11 = { path = "crates/platform/x11", version = "0.1.0" }
 
 # --- async runtime ---
 tokio      = { version = "1.40", default-features = false }
@@ -92,7 +93,7 @@ chrono      = { version = "0.4", default-features = false, features = ["std", "s
 async-trait = { version = "0.1" }
 
 # --- platform: linux/x11 ---
-x11rb = { version = "0.13" }
+x11rb = { version = "0.13", features = ["xtest", "randr"] }
 
 # --- platform: wayland/libei ---
 reis = { version = "0.2" }

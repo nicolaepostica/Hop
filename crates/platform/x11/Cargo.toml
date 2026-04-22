@@ -22,3 +22,6 @@ tokio       = { workspace = true, features = ["rt", "sync", "macros", "net"] }
 tracing     = { workspace = true }
 thiserror   = { workspace = true }
 x11rb       = { workspace = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))'.dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

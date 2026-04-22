@@ -7,9 +7,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::{Parser, Subcommand};
-use input_leap_client::{run, ClientConfig};
+use input_leap_client::ClientConfig;
 use input_leap_net::{load_or_generate_cert, Fingerprint, FingerprintDb, PeerEntry};
-use input_leap_platform::MockScreen;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -131,8 +130,6 @@ async fn run_client(common: CommonArgs, client: ClientArgs) -> Result<()> {
         capabilities: Vec::new(),
     };
 
-    let screen = Arc::new(MockScreen::default_stub());
-
     let shutdown = CancellationToken::new();
     let shutdown_trigger = shutdown.clone();
     tokio::spawn(async move {
@@ -142,7 +139,47 @@ async fn run_client(common: CommonArgs, client: ClientArgs) -> Result<()> {
         }
     });
 
-    run(cfg, screen, shutdown).await
+    backend::run_client(cfg, shutdown).await
+}
+
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
+mod backend {
+    use std::sync::Arc;
+
+    use anyhow::Result;
+    use input_leap_client::{run, ClientConfig};
+    use input_leap_platform::MockScreen;
+    use tokio_util::sync::CancellationToken;
+    use tracing::{info, warn};
+
+    pub async fn run_client(cfg: ClientConfig, shutdown: CancellationToken) -> Result<()> {
+        match input_leap_platform_x11::X11Screen::open(None) {
+            Ok(screen) => {
+                info!("using X11 platform backend");
+                run(cfg, Arc::new(screen), shutdown).await
+            }
+            Err(err) => {
+                warn!(error = %err, "X11 unavailable; falling back to MockScreen");
+                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await
+            }
+        }
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd")))]
+mod backend {
+    use std::sync::Arc;
+
+    use anyhow::Result;
+    use input_leap_client::{run, ClientConfig};
+    use input_leap_platform::MockScreen;
+    use tokio_util::sync::CancellationToken;
+    use tracing::warn;
+
+    pub async fn run_client(cfg: ClientConfig, shutdown: CancellationToken) -> Result<()> {
+        warn!("no native platform backend on this OS yet; using MockScreen");
+        run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await
+    }
 }
 
 fn run_fingerprint(args: FingerprintArgs) -> Result<()> {
