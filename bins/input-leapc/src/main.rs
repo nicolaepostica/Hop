@@ -227,7 +227,38 @@ fn run_fingerprint(args: FingerprintArgs) -> Result<()> {
     }
 }
 
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
+#[cfg(target_os = "linux")]
+mod backend {
+    use std::sync::Arc;
+
+    use anyhow::Result;
+    use input_leap_client::{run, ClientConfig};
+    use input_leap_platform::MockScreen;
+    use tokio_util::sync::CancellationToken;
+    use tracing::{debug, info, warn};
+
+    pub async fn run_client(cfg: ClientConfig, shutdown: CancellationToken) -> Result<()> {
+        match input_leap_platform_ei::EiScreen::try_open() {
+            Ok(screen) => {
+                info!("using libei platform backend");
+                return run(cfg, Arc::new(screen), shutdown).await;
+            }
+            Err(err) => debug!(error = %err, "libei backend unavailable; trying X11"),
+        }
+        match input_leap_platform_x11::X11Screen::open(None) {
+            Ok(screen) => {
+                info!("using X11 platform backend");
+                run(cfg, Arc::new(screen), shutdown).await
+            }
+            Err(err) => {
+                warn!(error = %err, "X11 unavailable; falling back to MockScreen");
+                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await
+            }
+        }
+    }
+}
+
+#[cfg(any(target_os = "freebsd", target_os = "openbsd"))]
 mod backend {
     use std::sync::Arc;
 

@@ -23,3 +23,6 @@ tracing     = { workspace = true }
 thiserror   = { workspace = true }
 reis        = { workspace = true }
 zbus        = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+serial_test = { workspace = true }
