@@ -50,6 +50,7 @@ input-leap-client     = { path = "crates/client", version = "0.1.0" }
 input-leap-platform   = { path = "crates/platform/core", version = "0.1.0" }
 input-leap-platform-x11 = { path = "crates/platform/x11", version = "0.1.0" }
 input-leap-platform-ei  = { path = "crates/platform/ei", version = "0.1.0" }
+input-leap-platform-macos = { path = "crates/platform/macos", version = "0.1.0" }
 
 # --- async runtime ---
 tokio      = { version = "1.40", default-features = false }
