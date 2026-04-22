@@ -1163,6 +1163,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "input-leap-transfer"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "input-leap-common",
+ "input-leap-protocol",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "input-leapc"
 version = "0.1.0"
 dependencies = [

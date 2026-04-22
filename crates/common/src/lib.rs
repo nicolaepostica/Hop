@@ -7,7 +7,9 @@
 pub mod clipboard;
 pub mod ids;
 pub mod modifier;
+pub mod transfer;
 
 pub use self::clipboard::{ClipboardFormat, ClipboardId};
 pub use self::ids::{ButtonId, KeyId};
 pub use self::modifier::ModifierMask;
+pub use self::transfer::{FileManifest, FileManifestEntry, TransferCancelReason, TransferId};

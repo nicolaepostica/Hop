@@ -13,6 +13,7 @@ members = [
     "crates/platform/macos",
     "crates/platform/windows",
     "crates/platform/ei",
+    "crates/transfer",
     "bins/input-leaps",
     "bins/input-leapc",
     "bins/input-leap-migrate",
@@ -52,6 +53,7 @@ input-leap-platform-x11 = { path = "crates/platform/x11", version = "0.1.0" }
 input-leap-platform-ei  = { path = "crates/platform/ei", version = "0.1.0" }
 input-leap-platform-macos = { path = "crates/platform/macos", version = "0.1.0" }
 input-leap-platform-windows = { path = "crates/platform/windows", version = "0.1.0" }
+input-leap-transfer   = { path = "crates/transfer", version = "0.1.0" }
 
 # --- async runtime ---
 tokio      = { version = "1.40", default-features = false }

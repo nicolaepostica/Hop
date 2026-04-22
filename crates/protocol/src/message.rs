@@ -1,7 +1,10 @@
 //! Wire-level message types and their payloads.
 
 use bytes::Bytes;
-use input_leap_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
+use input_leap_common::{
+    ButtonId, ClipboardFormat, ClipboardId, FileManifest, KeyId, ModifierMask,
+    TransferCancelReason, TransferId,
+};
 use serde::{Deserialize, Serialize};
 
 /// Top-level wire message.
@@ -120,6 +123,42 @@ pub enum Message {
         format: ClipboardFormat,
         /// Raw bytes.
         data: Bytes,
+    },
+
+    /// Announces a new file-clipboard transfer; the manifest arrives
+    /// before any chunk so the receiver can pre-validate paths and
+    /// allocate staging space. See `specs/file-clipboard.md`.
+    FileTransferStart {
+        /// Unique identifier for this transfer.
+        transfer_id: TransferId,
+        /// Clipboard-grab sequence number the transfer is associated with.
+        clipboard_seq: u32,
+        /// Manifest of files and directories.
+        manifest: FileManifest,
+    },
+
+    /// One chunk of one file within an active transfer.
+    FileChunk {
+        /// Transfer this chunk belongs to.
+        transfer_id: TransferId,
+        /// Index into the manifest's `entries` that this chunk targets.
+        entry_index: u32,
+        /// Raw bytes appended to the file at `entries[entry_index]`.
+        data: Bytes,
+    },
+
+    /// All chunks for a transfer have been sent; receiver may finalise.
+    FileTransferEnd {
+        /// Transfer that just completed.
+        transfer_id: TransferId,
+    },
+
+    /// Abort a transfer; receiver cleans up staging.
+    FileTransferCancel {
+        /// Transfer being cancelled.
+        transfer_id: TransferId,
+        /// Why.
+        reason: TransferCancelReason,
     },
 
     /// Periodic liveness probe; peers exchange these every few seconds.

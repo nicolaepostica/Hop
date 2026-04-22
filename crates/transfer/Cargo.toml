@@ -1,0 +1,25 @@
+[package]
+name         = "input-leap-transfer"
+version      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+license      = { workspace = true }
+repository   = { workspace = true }
+authors      = { workspace = true }
+description  = "File-clipboard transfer engine (sender + receiver + path guards)."
+
+[lints]
+workspace = true
+
+[dependencies]
+input-leap-common   = { workspace = true }
+input-leap-protocol = { workspace = true }
+
+bytes     = { workspace = true }
+tokio     = { workspace = true, features = ["rt", "fs", "macros", "sync", "io-util"] }
+tracing   = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio    = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

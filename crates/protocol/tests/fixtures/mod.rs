@@ -5,8 +5,13 @@
 
 #![allow(dead_code, reason = "different test binaries use different subsets")]
 
+use std::path::PathBuf;
+
 use bytes::Bytes;
-use input_leap_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
+use input_leap_common::{
+    ButtonId, ClipboardFormat, ClipboardId, FileManifest, FileManifestEntry, KeyId, ModifierMask,
+    TransferCancelReason,
+};
 use input_leap_protocol::{
     Capability, DeviceInfoPayload, DisconnectReason, HelloPayload, Message, PROTOCOL_VERSION,
 };
@@ -66,6 +71,41 @@ pub fn arb_disconnect_reason() -> impl Strategy<Value = DisconnectReason> {
         Just(DisconnectReason::UserInitiated),
         Just(DisconnectReason::InternalError),
     ]
+}
+
+/// Transfer cancel reasons, skipping the `Unknown` catch-all for the
+/// same round-trip reason as `Capability::Unknown`.
+pub fn arb_cancel_reason() -> impl Strategy<Value = TransferCancelReason> {
+    prop_oneof![
+        Just(TransferCancelReason::UserCancelled),
+        Just(TransferCancelReason::DiskFull),
+        Just(TransferCancelReason::SizeMismatch),
+        Just(TransferCancelReason::PeerError),
+        Just(TransferCancelReason::PathTraversal),
+        Just(TransferCancelReason::TooLarge),
+    ]
+}
+
+pub fn arb_manifest_entry() -> impl Strategy<Value = FileManifestEntry> {
+    // Keep sizes modest so a small Vec of entries never overflows the
+    // manifest's `total_bytes` (u64) when we sum them below.
+    ("[a-z]{1,8}/?[a-z]{1,8}", 0u64..1_000_000, any::<bool>()).prop_map(|(rel, size, is_dir)| {
+        FileManifestEntry {
+            rel_path: PathBuf::from(rel),
+            size: if is_dir { 0 } else { size },
+            is_dir,
+        }
+    })
+}
+
+pub fn arb_manifest() -> impl Strategy<Value = FileManifest> {
+    prop::collection::vec(arb_manifest_entry(), 0..4).prop_map(|entries| {
+        let total_bytes = entries.iter().map(|e| e.size).sum();
+        FileManifest {
+            entries,
+            total_bytes,
+        }
+    })
 }
 
 pub fn arb_hello() -> impl Strategy<Value = HelloPayload> {
@@ -156,6 +196,31 @@ pub fn arb_message() -> BoxedStrategy<Message> {
         arb_disconnect_reason()
             .prop_map(|reason| Message::Disconnect { reason })
             .boxed(),
+        (any::<u64>(), any::<u32>(), arb_manifest())
+            .prop_map(
+                |(transfer_id, clipboard_seq, manifest)| Message::FileTransferStart {
+                    transfer_id,
+                    clipboard_seq,
+                    manifest,
+                },
+            )
+            .boxed(),
+        (any::<u64>(), any::<u32>(), arb_bytes())
+            .prop_map(|(transfer_id, entry_index, data)| Message::FileChunk {
+                transfer_id,
+                entry_index,
+                data,
+            })
+            .boxed(),
+        any::<u64>()
+            .prop_map(|transfer_id| Message::FileTransferEnd { transfer_id })
+            .boxed(),
+        (any::<u64>(), arb_cancel_reason())
+            .prop_map(|(transfer_id, reason)| Message::FileTransferCancel {
+                transfer_id,
+                reason,
+            })
+            .boxed(),
     ])
     .boxed()
 }
@@ -164,6 +229,7 @@ pub fn arb_message() -> BoxedStrategy<Message> {
 
 /// One representative instance of each [`Message`] variant. Ordered so a
 /// snapshot file read top-to-bottom walks through the whole wire vocabulary.
+#[allow(clippy::too_many_lines, reason = "intentional: one entry per variant")]
 pub fn canonical_messages() -> Vec<(&'static str, Message)> {
     vec![
         (
@@ -254,6 +320,40 @@ pub fn canonical_messages() -> Vec<(&'static str, Message)> {
             "disconnect",
             Message::Disconnect {
                 reason: DisconnectReason::UserInitiated,
+            },
+        ),
+        (
+            "file_transfer_start",
+            Message::FileTransferStart {
+                transfer_id: 1,
+                clipboard_seq: 42,
+                manifest: FileManifest {
+                    entries: vec![FileManifestEntry {
+                        rel_path: PathBuf::from("notes.txt"),
+                        size: 12,
+                        is_dir: false,
+                    }],
+                    total_bytes: 12,
+                },
+            },
+        ),
+        (
+            "file_chunk",
+            Message::FileChunk {
+                transfer_id: 1,
+                entry_index: 0,
+                data: Bytes::from_static(b"hello world!"),
+            },
+        ),
+        (
+            "file_transfer_end",
+            Message::FileTransferEnd { transfer_id: 1 },
+        ),
+        (
+            "file_transfer_cancel",
+            Message::FileTransferCancel {
+                transfer_id: 1,
+                reason: TransferCancelReason::UserCancelled,
             },
         ),
     ]
