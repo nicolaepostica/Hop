@@ -17,8 +17,17 @@ input-leap-protocol = { workspace = true }
 input-leap-net      = { workspace = true }
 input-leap-platform = { workspace = true }
 
+anyhow    = { workspace = true }
 tokio     = { workspace = true, features = ["rt", "macros", "sync", "time", "signal"] }
+tokio-util = { workspace = true, features = ["rt"] }
 arc-swap  = { workspace = true }
 futures   = { workspace = true }
 tracing   = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+input-leap-client = { workspace = true }
+chrono            = { workspace = true }
+tempfile          = { workspace = true }
+tokio             = { workspace = true, features = ["rt-multi-thread", "macros", "time", "test-util"] }
+tracing-subscriber = { workspace = true }

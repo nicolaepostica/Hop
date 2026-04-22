@@ -1,12 +1,12 @@
 [package]
-name        = "input-leaps"
-version     = { workspace = true }
-edition     = { workspace = true }
+name         = "input-leaps"
+version      = { workspace = true }
+edition      = { workspace = true }
 rust-version = { workspace = true }
-license     = { workspace = true }
-repository  = { workspace = true }
-authors     = { workspace = true }
-description = "Input Leap server — shares primary machine's input with clients."
+license      = { workspace = true }
+repository   = { workspace = true }
+authors      = { workspace = true }
+description  = "Input Leap server — shares primary machine's input with clients."
 
 [lints]
 workspace = true
@@ -16,10 +16,19 @@ name = "input-leaps"
 path = "src/main.rs"
 
 [dependencies]
-input-leap-server = { workspace = true }
+input-leap-net      = { workspace = true }
+input-leap-platform = { workspace = true }
+input-leap-server   = { workspace = true }
 
 anyhow             = { workspace = true }
+chrono             = { workspace = true }
 clap               = { workspace = true }
 tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
+tokio-util         = { workspace = true, features = ["rt"] }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+assert_cmd = { workspace = true }
+predicates = { workspace = true }
+tempfile   = { workspace = true }

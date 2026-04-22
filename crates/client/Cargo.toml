@@ -17,7 +17,9 @@ input-leap-protocol = { workspace = true }
 input-leap-net      = { workspace = true }
 input-leap-platform = { workspace = true }
 
+anyhow    = { workspace = true }
 tokio     = { workspace = true, features = ["rt", "macros", "sync", "time", "signal"] }
+tokio-util = { workspace = true, features = ["rt"] }
 backoff   = { workspace = true }
 futures   = { workspace = true }
 tracing   = { workspace = true }

@@ -16,6 +16,7 @@ input-leap-common   = { workspace = true }
 input-leap-protocol = { workspace = true }
 
 tokio            = { workspace = true, features = ["net", "rt", "macros", "time", "sync", "io-util"] }
+tokio-util       = { workspace = true, features = ["codec"] }
 tokio-rustls     = { workspace = true }
 rustls           = { workspace = true }
 rustls-pemfile   = { workspace = true }
@@ -30,3 +31,9 @@ tracing          = { workspace = true }
 thiserror        = { workspace = true }
 backoff          = { workspace = true }
 futures          = { workspace = true }
+
+[dev-dependencies]
+tokio              = { workspace = true, features = ["test-util", "rt-multi-thread"] }
+tokio-util         = { workspace = true, features = ["codec", "rt"] }
+tempfile           = { workspace = true }
+tracing-subscriber = { workspace = true }
