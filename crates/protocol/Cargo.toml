@@ -1,0 +1,21 @@
+[package]
+name        = "input-leap-protocol"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+description = "CBOR-based wire protocol for Input Leap."
+
+[lints]
+workspace = true
+
+[dependencies]
+input-leap-common = { workspace = true }
+
+serde      = { workspace = true }
+ciborium   = { workspace = true }
+bytes      = { workspace = true }
+tokio-util = { workspace = true, features = ["codec"] }
+thiserror  = { workspace = true }

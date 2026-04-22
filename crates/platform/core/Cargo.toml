@@ -1,0 +1,22 @@
+[package]
+name        = "input-leap-platform"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+description = "PlatformScreen trait and MockScreen for Input Leap."
+
+[lints]
+workspace = true
+
+[dependencies]
+input-leap-common = { workspace = true }
+
+async-trait = { workspace = true }
+bytes       = { workspace = true }
+futures     = { workspace = true }
+tokio       = { workspace = true, features = ["sync"] }
+tracing     = { workspace = true }
+thiserror   = { workspace = true }

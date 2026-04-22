@@ -1,0 +1,32 @@
+[package]
+name        = "input-leap-net"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+description = "TCP + TLS transport and handshake for Input Leap."
+
+[lints]
+workspace = true
+
+[dependencies]
+input-leap-common   = { workspace = true }
+input-leap-protocol = { workspace = true }
+
+tokio            = { workspace = true, features = ["net", "rt", "macros", "time", "sync", "io-util"] }
+tokio-rustls     = { workspace = true }
+rustls           = { workspace = true }
+rustls-pemfile   = { workspace = true }
+rustls-pki-types = { workspace = true }
+rcgen            = { workspace = true }
+sha2             = { workspace = true }
+bytes            = { workspace = true }
+serde            = { workspace = true }
+toml             = { workspace = true }
+chrono           = { workspace = true }
+tracing          = { workspace = true }
+thiserror        = { workspace = true }
+backoff          = { workspace = true }
+futures          = { workspace = true }

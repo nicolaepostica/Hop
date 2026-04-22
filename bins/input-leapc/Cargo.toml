@@ -1,0 +1,25 @@
+[package]
+name        = "input-leapc"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+description = "Input Leap client — receives input from a server and injects it locally."
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "input-leapc"
+path = "src/main.rs"
+
+[dependencies]
+input-leap-client = { workspace = true }
+
+anyhow             = { workspace = true }
+clap               = { workspace = true }
+tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }

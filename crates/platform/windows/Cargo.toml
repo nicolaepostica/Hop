@@ -1,0 +1,31 @@
+[package]
+name        = "input-leap-platform-windows"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+description = "Windows backend for Input Leap."
+
+[lints]
+workspace = true
+
+[target.'cfg(windows)'.dependencies]
+input-leap-common   = { workspace = true }
+input-leap-platform = { workspace = true }
+
+async-trait = { workspace = true }
+bytes       = { workspace = true }
+futures     = { workspace = true }
+tokio       = { workspace = true, features = ["rt", "sync", "macros"] }
+tracing     = { workspace = true }
+thiserror   = { workspace = true }
+windows     = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+] }

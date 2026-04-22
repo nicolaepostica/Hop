@@ -1,0 +1,25 @@
+[package]
+name        = "input-leaps"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+description = "Input Leap server — shares primary machine's input with clients."
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "input-leaps"
+path = "src/main.rs"
+
+[dependencies]
+input-leap-server = { workspace = true }
+
+anyhow             = { workspace = true }
+clap               = { workspace = true }
+tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }

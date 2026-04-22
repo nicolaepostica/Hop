@@ -1,0 +1,124 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/common",
+    "crates/protocol",
+    "crates/net",
+    "crates/ipc",
+    "crates/config",
+    "crates/server",
+    "crates/client",
+    "crates/platform/core",
+    "crates/platform/x11",
+    "crates/platform/macos",
+    "crates/platform/windows",
+    "crates/platform/ei",
+    "bins/input-leaps",
+    "bins/input-leapc",
+    "bins/input-leap-migrate",
+    "xtask",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "GPL-2.0-only"
+repository = "https://github.com/input-leap/input-leap"
+authors = ["Input Leap Contributors"]
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[workspace.dependencies]
+# --- internal crates ---
+input-leap-common     = { path = "crates/common", version = "0.1.0" }
+input-leap-protocol   = { path = "crates/protocol", version = "0.1.0" }
+input-leap-net        = { path = "crates/net", version = "0.1.0" }
+input-leap-ipc        = { path = "crates/ipc", version = "0.1.0" }
+input-leap-config     = { path = "crates/config", version = "0.1.0" }
+input-leap-server     = { path = "crates/server", version = "0.1.0" }
+input-leap-client     = { path = "crates/client", version = "0.1.0" }
+input-leap-platform   = { path = "crates/platform/core", version = "0.1.0" }
+
+# --- async runtime ---
+tokio      = { version = "1.40", default-features = false }
+tokio-util = { version = "0.7", default-features = false }
+futures    = { version = "0.3", default-features = false, features = ["std"] }
+
+# --- serialization ---
+serde       = { version = "1", features = ["derive"] }
+serde_json  = { version = "1" }
+ciborium    = { version = "0.2" }
+toml        = { version = "0.8" }
+bytes       = { version = "1", features = ["serde"] }
+
+# --- tls / crypto ---
+tokio-rustls    = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rustls          = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pemfile  = { version = "2" }
+rustls-pki-types = { version = "1" }
+rcgen           = { version = "0.13", default-features = false, features = ["ring"] }
+sha2            = { version = "0.10" }
+
+# --- config / cli ---
+clap       = { version = "4.5", features = ["derive", "env"] }
+figment    = { version = "0.10", features = ["toml", "env"] }
+directories = { version = "5" }
+shellexpand = { version = "3" }
+
+# --- ipc ---
+interprocess = { version = "2", features = ["tokio"] }
+
+# --- logging / errors ---
+tracing            = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+thiserror          = { version = "1" }
+anyhow             = { version = "1" }
+
+# --- helpers ---
+bitflags    = { version = "2", features = ["serde"] }
+arc-swap    = { version = "1" }
+backoff     = { version = "0.4", features = ["tokio"] }
+chrono      = { version = "0.4", default-features = false, features = ["std", "serde", "now"] }
+async-trait = { version = "0.1" }
+
+# --- platform: linux/x11 ---
+x11rb = { version = "0.13" }
+
+# --- platform: wayland/libei ---
+reis = { version = "0.2" }
+zbus = { version = "4", default-features = false, features = ["tokio"] }
+
+# --- platform: macos ---
+objc2          = { version = "0.5" }
+core-graphics  = { version = "0.24" }
+
+# --- platform: windows ---
+windows         = { version = "0.58" }
+windows-service = { version = "0.7" }
+
+# --- dev-dependencies ---
+proptest       = { version = "1" }
+proptest-derive = { version = "0.5" }
+insta          = { version = "1", features = ["yaml"] }
+tokio-test     = { version = "0.4" }
+rstest         = { version = "0.23" }
+
+[profile.release]
+lto          = "thin"
+codegen-units = 1
+panic        = "abort"
+strip        = "symbols"
+
+[profile.dev]
+opt-level = 0
+debug     = 2

@@ -1,0 +1,24 @@
+[package]
+name        = "input-leap-client"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+description = "Client-side logic for Input Leap (connects to a server, injects input)."
+
+[lints]
+workspace = true
+
+[dependencies]
+input-leap-common   = { workspace = true }
+input-leap-protocol = { workspace = true }
+input-leap-net      = { workspace = true }
+input-leap-platform = { workspace = true }
+
+tokio     = { workspace = true, features = ["rt", "macros", "sync", "time", "signal"] }
+backoff   = { workspace = true }
+futures   = { workspace = true }
+tracing   = { workspace = true }
+thiserror = { workspace = true }

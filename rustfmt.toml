@@ -1,0 +1,11 @@
+edition = "2021"
+max_width = 100
+reorder_imports = true
+use_field_init_shorthand = true
+use_try_shorthand = true
+newline_style = "Unix"
+
+# Nightly-only options (commented out so stable rustfmt does not spam warnings).
+# Re-enable when the project moves to nightly rustfmt in CI:
+#   imports_granularity = "Module"
+#   group_imports = "StdExternalCrate"
