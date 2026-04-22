@@ -39,6 +39,9 @@ input-leap-platform-ei = { workspace = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 input-leap-platform-macos = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+input-leap-platform-windows = { workspace = true }
+
 [dev-dependencies]
 assert_cmd = { workspace = true }
 predicates = { workspace = true }

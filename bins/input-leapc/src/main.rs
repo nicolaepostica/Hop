@@ -306,11 +306,36 @@ mod backend {
     }
 }
 
+#[cfg(windows)]
+mod backend {
+    use std::sync::Arc;
+
+    use anyhow::Result;
+    use input_leap_client::{run, ClientConfig};
+    use input_leap_platform::MockScreen;
+    use tokio_util::sync::CancellationToken;
+    use tracing::{info, warn};
+
+    pub async fn run_client(cfg: ClientConfig, shutdown: CancellationToken) -> Result<()> {
+        match input_leap_platform_windows::WindowsScreen::try_open() {
+            Ok(screen) => {
+                info!("using Windows platform backend");
+                run(cfg, Arc::new(screen), shutdown).await
+            }
+            Err(err) => {
+                warn!(error = %err, "Windows backend unavailable; falling back to MockScreen");
+                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await
+            }
+        }
+    }
+}
+
 #[cfg(not(any(
     target_os = "linux",
     target_os = "freebsd",
     target_os = "openbsd",
-    target_os = "macos"
+    target_os = "macos",
+    windows
 )))]
 mod backend {
     use std::sync::Arc;
