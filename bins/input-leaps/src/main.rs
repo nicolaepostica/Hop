@@ -99,6 +99,15 @@ struct ServerArgs {
     /// Disable the GUI IPC server.
     #[arg(long)]
     no_ipc: bool,
+    /// Run as a Windows NT service (M10 scaffold).
+    ///
+    /// When set on Windows, the process registers with the Service
+    /// Control Manager via `windows-service` and turns into a service
+    /// dispatcher. On non-Windows targets the flag is accepted but
+    /// ignored with a warning so the same `input-leaps --service`
+    /// command line compiles everywhere.
+    #[arg(long)]
+    service: bool,
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -123,6 +132,24 @@ fn init_tracing() {
         .init();
 }
 
+#[cfg(windows)]
+fn warn_service_mode() {
+    // M10 scaffold. A real NT service entry point uses
+    // `windows_service::service_dispatcher::start()` and a
+    // ServiceControlHandler; wire that up when a Windows iteration
+    // loop is available.
+    tracing::warn!(
+        "--service is a scaffold: running in foreground. Real NT \
+         service dispatch lands alongside the Windows backend when \
+         a Windows CI iteration loop is set up."
+    );
+}
+
+#[cfg(not(windows))]
+fn warn_service_mode() {
+    tracing::warn!("--service has no effect on non-Windows targets; ignoring");
+}
+
 fn config_path(cli_override: Option<&Path>) -> Option<PathBuf> {
     cli_override
         .map(Path::to_path_buf)
@@ -141,6 +168,9 @@ fn resolve_settings(common: &CommonArgs, server: &ServerArgs) -> Result<ServerSe
 }
 
 async fn run_server(common: CommonArgs, server: ServerArgs) -> Result<()> {
+    if server.service {
+        warn_service_mode();
+    }
     let ipc_socket: Option<PathBuf> = if server.no_ipc {
         None
     } else {
@@ -320,6 +350,7 @@ fn run_fingerprint(args: FingerprintArgs) -> Result<()> {
             name: None,
             ipc_socket: None,
             no_ipc: true,
+            service: false,
         },
     )?;
     match args.action {

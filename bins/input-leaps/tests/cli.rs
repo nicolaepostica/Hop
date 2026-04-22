@@ -99,6 +99,15 @@ fn fingerprint_add_list_remove_round_trip() {
 }
 
 #[test]
+fn help_mentions_service_flag() {
+    bin()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--service"));
+}
+
+#[test]
 fn fingerprint_add_rejects_bad_fingerprint_format() {
     let dir = TempDir::new().unwrap();
     let cert_dir = dir.path().join("tls");
