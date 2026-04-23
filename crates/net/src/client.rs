@@ -14,7 +14,6 @@ use tracing::debug;
 use crate::fingerprint::Fingerprint;
 use crate::listener::TLS_HANDSHAKE_TIMEOUT;
 use crate::stream::ConnectedStream;
-use crate::tls::DEFAULT_CERT_SAN;
 
 /// Errors from [`connect`].
 #[derive(Debug, Error)]
@@ -54,10 +53,11 @@ pub async fn connect(
 
     let connector = TlsConnector::from(config);
     // Self-signed certs are verified by fingerprint, not by name, so
-    // the SAN we pass here only matters for the rustls machinery.
-    let server_name = ServerName::try_from(DEFAULT_CERT_SAN)
-        .expect("DEFAULT_CERT_SAN is a valid DNS name")
-        .to_owned();
+    // the ServerName we pass here only satisfies the rustls state
+    // machine. Use the peer's IP address: peers always have a well-
+    // defined IP (we just dialed it), and unlike a hardcoded DNS name
+    // it does not require the remote cert to carry any particular SAN.
+    let server_name = ServerName::IpAddress(addr.ip().into());
 
     let tls = match timeout(TLS_HANDSHAKE_TIMEOUT, connector.connect(server_name, tcp)).await {
         Err(_) => return Err(ConnectError::HandshakeTimeout),
