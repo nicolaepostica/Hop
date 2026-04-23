@@ -415,18 +415,18 @@ mod backend {
         match input_leap_platform_ei::EiScreen::try_open() {
             Ok(screen) => {
                 info!("using libei platform backend");
-                return run(cfg, Arc::new(screen), shutdown).await;
+                return run(cfg, Arc::new(screen), shutdown).await.map_err(Into::into);
             }
             Err(err) => debug!(error = %err, "libei backend unavailable; trying X11"),
         }
         match input_leap_platform_x11::X11Screen::open(None) {
             Ok(screen) => {
                 info!("using X11 platform backend");
-                run(cfg, Arc::new(screen), shutdown).await
+                run(cfg, Arc::new(screen), shutdown).await.map_err(Into::into)
             }
             Err(err) => {
                 warn!(error = %err, "X11 unavailable; falling back to MockScreen");
-                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await
+                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await.map_err(Into::into)
             }
         }
     }
@@ -446,11 +446,11 @@ mod backend {
         match input_leap_platform_x11::X11Screen::open(None) {
             Ok(screen) => {
                 info!("using X11 platform backend");
-                run(cfg, Arc::new(screen), shutdown).await
+                run(cfg, Arc::new(screen), shutdown).await.map_err(Into::into)
             }
             Err(err) => {
                 warn!(error = %err, "X11 unavailable; falling back to MockScreen");
-                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await
+                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await.map_err(Into::into)
             }
         }
     }
@@ -470,11 +470,11 @@ mod backend {
         match input_leap_platform_macos::MacOsScreen::try_open() {
             Ok(screen) => {
                 info!("using macOS platform backend");
-                run(cfg, Arc::new(screen), shutdown).await
+                run(cfg, Arc::new(screen), shutdown).await.map_err(Into::into)
             }
             Err(err) => {
                 warn!(error = %err, "macOS backend unavailable; falling back to MockScreen");
-                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await
+                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await.map_err(Into::into)
             }
         }
     }
@@ -494,11 +494,11 @@ mod backend {
         match input_leap_platform_windows::WindowsScreen::try_open() {
             Ok(screen) => {
                 info!("using Windows platform backend");
-                run(cfg, Arc::new(screen), shutdown).await
+                run(cfg, Arc::new(screen), shutdown).await.map_err(Into::into)
             }
             Err(err) => {
                 warn!(error = %err, "Windows backend unavailable; falling back to MockScreen");
-                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await
+                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await.map_err(Into::into)
             }
         }
     }
@@ -522,6 +522,6 @@ mod backend {
 
     pub async fn run_server(cfg: ServerConfig, shutdown: CancellationToken) -> Result<()> {
         warn!("no native platform backend on this OS yet; using MockScreen");
-        run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await
+        run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await.map_err(Into::into)
     }
 }

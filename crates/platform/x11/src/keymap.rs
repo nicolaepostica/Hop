@@ -25,9 +25,9 @@ impl KeyMap {
 
         let reply = conn
             .get_keyboard_mapping(min_keycode, count)
-            .map_err(wrap)?
+            .map_err(PlatformError::connection_lost)?
             .reply()
-            .map_err(wrap)?;
+            .map_err(PlatformError::connection_lost)?;
 
         let keysyms_per_keycode = reply.keysyms_per_keycode as usize;
         let mut keysym_to_keycode = HashMap::new();
@@ -53,8 +53,4 @@ impl KeyMap {
     pub fn keycode(&self, keysym: u32) -> Option<u8> {
         self.keysym_to_keycode.get(&keysym).copied()
     }
-}
-
-fn wrap<E: std::fmt::Display>(err: E) -> PlatformError {
-    PlatformError::Other(err.to_string())
 }

@@ -61,12 +61,13 @@ impl X11Screen {
     /// Open the display named by `$DISPLAY` (or the explicit argument
     /// if provided).
     pub fn open(display: Option<&str>) -> Result<Self, PlatformError> {
-        let (conn, screen_num) = x11rb::connect(display).map_err(wrap)?;
+        let (conn, screen_num) = x11rb::connect(display)
+            .map_err(|e| PlatformError::Unavailable(format!("cannot open X display: {e}")))?;
 
         // Make sure XTest is available before we promise injection.
         let ext = conn
             .extension_information(x11rb::protocol::xtest::X11_EXTENSION_NAME)
-            .map_err(wrap)?;
+            .map_err(PlatformError::connection_lost)?;
         if ext.is_none() {
             return Err(PlatformError::Unavailable(
                 "X server does not expose the XTEST extension".into(),
@@ -116,9 +117,9 @@ impl X11Screen {
                 root_y,
                 0,
             )
-            .map_err(wrap)?
+            .map_err(PlatformError::connection_lost)?
             .check()
-            .map_err(wrap)?;
+            .map_err(PlatformError::connection_lost)?;
         Ok(())
     }
 }
@@ -210,8 +211,4 @@ async fn click_wheel(
         screen.fake_input(BUTTON_RELEASE, button, 0, 0)?;
     }
     Ok(())
-}
-
-fn wrap<E: std::fmt::Display>(err: E) -> PlatformError {
-    PlatformError::Other(err.to_string())
 }

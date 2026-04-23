@@ -6,18 +6,40 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
 use futures::{SinkExt, StreamExt};
 use input_leap_net::{
-    build_client_config, client_handshake, connect, FingerprintDb, KeepAliveTracker, LoadedIdentity,
+    build_client_config, client_handshake, connect, ConnectError, FingerprintDb, HandshakeError,
+    KeepAliveTracker, LoadedIdentity, TlsError,
 };
 use input_leap_platform::PlatformScreen;
 use input_leap_protocol::{
-    Capability, DeviceInfoPayload, DisconnectReason, HelloPayload, Message, PROTOCOL_VERSION,
+    Capability, DeviceInfoPayload, DisconnectReason, HelloPayload, Message, ProtocolError,
+    PROTOCOL_VERSION,
 };
+use thiserror::Error;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
+
+/// Errors the client can produce.
+#[derive(Debug, Error)]
+pub enum ClientError {
+    /// Building the rustls client config failed.
+    #[error("build TLS config: {0}")]
+    TlsConfig(#[from] TlsError),
+
+    /// TCP + TLS connect failed.
+    #[error("connect to server: {0}")]
+    Connect(#[from] ConnectError),
+
+    /// Application-level handshake with the server failed.
+    #[error("handshake: {0}")]
+    Handshake(#[from] HandshakeError),
+
+    /// Protocol framing / codec error on an established session.
+    #[error("protocol: {0}")]
+    Protocol(#[from] ProtocolError),
+}
 
 /// Everything the client needs to run.
 #[derive(Debug, Clone)]
@@ -36,15 +58,16 @@ pub struct ClientConfig {
 
 /// Connect to the server and run until the shutdown token is triggered
 /// (or the connection ends).
-pub async fn run<S>(cfg: ClientConfig, screen: Arc<S>, shutdown: CancellationToken) -> Result<()>
+pub async fn run<S>(
+    cfg: ClientConfig,
+    screen: Arc<S>,
+    shutdown: CancellationToken,
+) -> Result<(), ClientError>
 where
     S: PlatformScreen,
 {
-    let tls_config = build_client_config(&cfg.identity, cfg.trusted_peers.clone())
-        .context("build client TLS config")?;
-    let stream = connect(cfg.server_addr, Arc::new(tls_config))
-        .await
-        .with_context(|| format!("connect to {}", cfg.server_addr))?;
+    let tls_config = build_client_config(&cfg.identity, cfg.trusted_peers.clone())?;
+    let stream = connect(cfg.server_addr, Arc::new(tls_config)).await?;
     info!(
         peer = %stream.peer_addr(),
         fingerprint = %stream.peer_fingerprint(),
@@ -66,9 +89,7 @@ where
     };
 
     let mut framed = stream.into_framed();
-    let outcome = client_handshake(&mut framed, our_hello, our_device_info)
-        .await
-        .context("client handshake")?;
+    let outcome = client_handshake(&mut framed, our_hello, our_device_info).await?;
     info!(peer_name = %outcome.peer_name, "handshake complete");
 
     session_loop(&mut framed, shutdown).await
@@ -77,7 +98,7 @@ where
 async fn session_loop(
     framed: &mut input_leap_net::HandshakeStream,
     shutdown: CancellationToken,
-) -> Result<()> {
+) -> Result<(), ClientError> {
     let mut keepalive = KeepAliveTracker::new();
 
     loop {

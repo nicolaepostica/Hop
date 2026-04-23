@@ -85,7 +85,7 @@ impl X11Clipboard {
                     warn!(error = %err, "X11 clipboard worker exited");
                 }
             })
-            .map_err(|e| PlatformError::Other(e.to_string()))?;
+            .map_err(|e| PlatformError::Other(format!("spawn clipboard thread: {e}")))?;
         Ok(Self {
             tx,
             join: Some(join),
@@ -161,10 +161,10 @@ impl Atoms {
     fn intern(conn: &RustConnection) -> Result<Self, PlatformError> {
         fn intern_one(conn: &RustConnection, name: &[u8]) -> Result<Atom, PlatformError> {
             conn.intern_atom(false, name)
-                .map_err(wrap)?
+                .map_err(PlatformError::connection_lost)?
                 .reply()
                 .map(|r| r.atom)
-                .map_err(wrap)
+                .map_err(PlatformError::connection_lost)
         }
         Ok(Self {
             clipboard: intern_one(conn, b"CLIPBOARD")?,
@@ -217,12 +217,14 @@ impl OwnedStore {
 }
 
 fn run_worker(display: Option<&str>, rx: &mpsc::Receiver<Cmd>) -> Result<(), PlatformError> {
-    let (conn, screen_num) = x11rb::connect(display).map_err(wrap)?;
+    let (conn, screen_num) = x11rb::connect(display).map_err(|e| {
+        PlatformError::Unavailable(format!("clipboard: cannot open X display: {e}"))
+    })?;
     let root = conn.setup().roots[screen_num].root;
 
     // Create an invisible owner window to attach selections to and
     // receive SelectionRequest events on.
-    let window = conn.generate_id().map_err(wrap)?;
+    let window = conn.generate_id().map_err(PlatformError::connection_lost)?;
     conn.create_window(
         COPY_DEPTH_FROM_PARENT,
         window,
@@ -236,9 +238,9 @@ fn run_worker(display: Option<&str>, rx: &mpsc::Receiver<Cmd>) -> Result<(), Pla
         COPY_FROM_PARENT,
         &CreateWindowAux::new().event_mask(EventMask::PROPERTY_CHANGE),
     )
-    .map_err(wrap)?
+    .map_err(PlatformError::connection_lost)?
     .check()
-    .map_err(wrap)?;
+    .map_err(PlatformError::connection_lost)?;
 
     let atoms = Atoms::intern(&conn)?;
     let mut owned = OwnedStore::default();
@@ -314,9 +316,9 @@ fn handle_selection_request(
             AtomEnum::ATOM,
             &targets,
         )
-        .map_err(wrap)?
+        .map_err(PlatformError::connection_lost)?
         .check()
-        .map_err(wrap)?;
+        .map_err(PlatformError::connection_lost)?;
         target_property
     } else if let Some(data) = owned.get(req.selection, req.target) {
         conn.change_property(
@@ -328,9 +330,9 @@ fn handle_selection_request(
             u32::try_from(data.len()).unwrap_or(u32::MAX),
             data.as_ref(),
         )
-        .map_err(wrap)?
+        .map_err(PlatformError::connection_lost)?
         .check()
-        .map_err(wrap)?;
+        .map_err(PlatformError::connection_lost)?;
         target_property
     } else {
         // Tell the requestor we can't satisfy it.
@@ -347,10 +349,10 @@ fn handle_selection_request(
         property: reply_property,
     };
     conn.send_event(false, req.requestor, EventMask::NO_EVENT, notify)
-        .map_err(wrap)?
+        .map_err(PlatformError::connection_lost)?
         .check()
-        .map_err(wrap)?;
-    conn.flush().map_err(wrap)?;
+        .map_err(PlatformError::connection_lost)?;
+    conn.flush().map_err(PlatformError::connection_lost)?;
     Ok(())
 }
 
@@ -364,17 +366,15 @@ fn write_selection(
     data: Bytes,
 ) -> Result<(), PlatformError> {
     let Some(target) = atoms.format_target(format) else {
-        return Err(PlatformError::Other(format!(
-            "X11 clipboard: format {format:?} not supported yet"
-        )));
+        return Err(PlatformError::UnsupportedFormat { format });
     };
     let selection = atoms.selection_atom(id);
     owned.set(selection, target, data);
     conn.set_selection_owner(window, selection, CURRENT_TIME)
-        .map_err(wrap)?
+        .map_err(PlatformError::connection_lost)?
         .check()
-        .map_err(wrap)?;
-    conn.flush().map_err(wrap)?;
+        .map_err(PlatformError::connection_lost)?;
+    conn.flush().map_err(PlatformError::connection_lost)?;
     Ok(())
 }
 
@@ -397,19 +397,17 @@ fn read_selection(
         .map(|c| c.check());
 
     conn.convert_selection(window, selection, target, atoms.reply_prop, CURRENT_TIME)
-        .map_err(wrap)?
+        .map_err(PlatformError::connection_lost)?
         .check()
-        .map_err(wrap)?;
-    conn.flush().map_err(wrap)?;
+        .map_err(PlatformError::connection_lost)?;
+    conn.flush().map_err(PlatformError::connection_lost)?;
 
     let deadline = Instant::now() + READ_TIMEOUT;
     loop {
         if Instant::now() >= deadline {
-            return Err(PlatformError::Other(
-                "timeout waiting for selection owner".into(),
-            ));
+            return Err(PlatformError::ClipboardTimeout);
         }
-        let event = match conn.poll_for_event().map_err(wrap)? {
+        let event = match conn.poll_for_event().map_err(PlatformError::connection_lost)? {
             Some(e) => e,
             None => {
                 std::thread::sleep(Duration::from_millis(10));
@@ -449,17 +447,13 @@ fn fetch_property(
     // Reading in one shot; INCR handling for >256 KiB clipboards is TODO.
     let reply = conn
         .get_property(true, window, property, target, 0, u32::MAX / 4)
-        .map_err(wrap)?
+        .map_err(PlatformError::connection_lost)?
         .reply()
-        .map_err(wrap)?;
+        .map_err(PlatformError::connection_lost)?;
     if reply.type_ == x11rb::NONE {
         return Ok(Bytes::new());
     }
     Ok(Bytes::from(reply.value))
-}
-
-fn wrap<E: std::fmt::Display>(err: E) -> PlatformError {
-    PlatformError::Other(err.to_string())
 }
 
 // Re-export for the screen module to avoid an unused-import warning

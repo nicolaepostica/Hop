@@ -959,7 +959,6 @@ checksum = "c8fae54786f62fb2918dcfae3d568594e50eb9b5c25bf04371af6fe7516452fb"
 name = "input-leap-client"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "backoff",
  "futures",
  "input-leap-common",
@@ -1145,7 +1144,6 @@ dependencies = [
 name = "input-leap-server"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "arc-swap",
  "chrono",
  "futures",
