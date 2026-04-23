@@ -1,4 +1,4 @@
-//! macOS backend for Input Leap (Core Graphics / `IOKit`).
+//! macOS backend for Hop (Core Graphics / `IOKit`).
 //!
 //! # Status
 //!
@@ -12,7 +12,7 @@
 //! The author does not have a macOS build/test environment, so rather
 //! than ship code that might fail to compile against Apple's SDK this
 //! crate publishes a typed [`MacOsScreen`] scaffold that the
-//! dispatcher in `input-leaps` / `input-leapc` wires up, and returns
+//! dispatcher in `hops` / `hopc` wires up, and returns
 //! descriptive [`PlatformError::Unavailable`] messages naming what is
 //! missing. CI's `macos-latest` job verifies the scaffold compiles.
 //!

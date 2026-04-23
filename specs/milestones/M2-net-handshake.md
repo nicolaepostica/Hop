@@ -2,7 +2,7 @@
 
 ## Цель
 
-Получить работающий end-to-end канал «Rust-сервер ↔ Rust-клиент» через TCP + TLS с полным handshake и обменом keep-alive, без настоящего платформенного слоя (MockScreen). По завершении M2 можно запустить `input-leaps` и `input-leapc` на localhost, они пройдут рукопожатие, обменяются DeviceInfo и будут гонять KeepAlive до `Ctrl+C`.
+Получить работающий end-to-end канал «Rust-сервер ↔ Rust-клиент» через TCP + TLS с полным handshake и обменом keep-alive, без настоящего платформенного слоя (MockScreen). По завершении M2 можно запустить `hops` и `hopc` на localhost, они пройдут рукопожатие, обменяются DeviceInfo и будут гонять KeepAlive до `Ctrl+C`.
 
 ## Предпосылки
 
@@ -19,7 +19,7 @@
 - Handshake state machine: TLS handshake → `Hello` exchange → `DeviceInfo` exchange → active
 - KeepAlive timer через `tokio::time::interval`, 3 пропуска = disconnect
 - MockScreen в `platform/core` для тестирования без реального backend
-- Minimal CLI для `input-leaps` и `input-leapc`: `--listen`, `--connect`, `--fingerprint`, `--name`
+- Minimal CLI для `hops` и `hopc`: `--listen`, `--connect`, `--fingerprint`, `--name`
 - Integration test: два `tokio::spawn` процесса-эмулятора прогоняют полный handshake + 5 секунд KeepAlive
 - Graceful shutdown через `tokio::signal::ctrl_c` + `Disconnect { reason: UserInitiated }`
 
@@ -38,7 +38,7 @@
   - `pub struct TlsConfig { server_config, client_config, fingerprint_db }`
   - `fn load_or_generate_cert(dir: &Path) -> Result<(Certificate, PrivateKey)>`:
     - Если `cert.pem` и `key.pem` в `dir` есть — загрузить через `rustls-pemfile`
-    - Иначе — сгенерировать через `rcgen::generate_simple_self_signed(vec!["input-leap-host".into()])`, сохранить с правами `0600` на Unix / ACL на Windows
+    - Иначе — сгенерировать через `rcgen::generate_simple_self_signed(vec!["hop-host".into()])`, сохранить с правами `0600` на Unix / ACL на Windows
   - Custom `rustls::server::ClientCertVerifier` и `rustls::client::ServerCertVerifier` — verify через fingerprint DB (не через CA chain)
 - [ ] `crates/net/src/fingerprint.rs`:
   - `struct FingerprintDb` — wrapper над `Vec<PeerEntry>`
@@ -109,12 +109,12 @@
 - [ ] `crates/client/src/lib.rs`:
   - `pub async fn run(config: ClientConfig, screen: impl PlatformScreen) -> Result<()>` — connect + handshake + event loop
   - Событийная часть (screen.event_stream) пока отдаёт в пустоту (MockScreen возвращает empty stream)
-- [ ] `bins/input-leaps/src/main.rs`:
+- [ ] `bins/hops/src/main.rs`:
   - `clap` derive с флагами `--listen 0.0.0.0:24800`, `--name`, `--cert-dir`, `--fingerprint-db`
   - `tracing_subscriber::fmt().init()`
   - Создаёт `MockScreen`, вызывает `server::run`
   - Корректный shutdown на `SIGINT`/`Ctrl+C`
-- [ ] `bins/input-leapc/src/main.rs`:
+- [ ] `bins/hopc/src/main.rs`:
   - Аналогично, с `--connect 127.0.0.1:24800`, `--server-fingerprint`, `--name`
 
 ### Тесты
@@ -131,13 +131,13 @@
 - [ ] `crates/net/tests/keepalive.rs`:
   - Два peer'а, один перестаёт слать `KeepAlive` (эмуляция через mock) — второй отваливается с `KeepAliveTimeout` за ~9 с (в тесте используем `tokio::time::pause/advance` для детерминизма)
 - [ ] `tests/e2e.rs` (на уровне workspace, не конкретного крейта):
-  - Запускает `input_leap_server::run` и `input_leap_client::run` как две `tokio::spawn` задачи на random ports
+  - Запускает `hop_server::run` и `hop_client::run` как две `tokio::spawn` задачи на random ports
   - С помощью MockScreen проверяет что handshake проходит, 3 KeepAlive циклически обмениваются, затем graceful shutdown через cancellation token
   - Таймаут теста — 15 секунд
 
 ### Fingerprint DB CRUD
 
-- [ ] CLI subcommand `input-leaps fingerprint add <name> <fp>` и `input-leaps fingerprint list`
+- [ ] CLI subcommand `hops fingerprint add <name> <fp>` и `hops fingerprint list`
 - [ ] Формат файла:
   ```toml
   # <config_dir>/fingerprints.toml
@@ -152,12 +152,12 @@
 - [ ] На handshake — `tracing::info!(peer = %name, fingerprint = %fp, "peer connected")`
 - [ ] На disconnect — `tracing::info!(peer = %name, reason = ?r, "peer disconnected")`
 - [ ] На ошибки — `tracing::warn!` или `error!` в зависимости от severity
-- [ ] `RUST_LOG=input_leap=debug` — управление через env
+- [ ] `RUST_LOG=hop=debug` — управление через env
 
 ## Acceptance criteria
 
-- [ ] `cargo run --bin input-leaps -- --listen 127.0.0.1:24800 --name server-a` стартует, слушает порт, пишет `fingerprint: sha256:...` в лог
-- [ ] `cargo run --bin input-leapc -- --connect 127.0.0.1:24800 --server-fingerprint sha256:... --name client-b` коннектится, handshake проходит, оба печатают `peer connected`
+- [ ] `cargo run --bin hops -- --listen 127.0.0.1:24800 --name server-a` стартует, слушает порт, пишет `fingerprint: sha256:...` в лог
+- [ ] `cargo run --bin hopc -- --connect 127.0.0.1:24800 --server-fingerprint sha256:... --name client-b` коннектится, handshake проходит, оба печатают `peer connected`
 - [ ] На `Ctrl+C` с любой стороны — graceful disconnect, оба процесса выходят с code 0
 - [ ] Интеграционный тест e2e проходит в CI (Linux/macOS/Windows) менее чем за 15 секунд
 - [ ] Все unit/integration тесты зелёные
@@ -172,7 +172,7 @@
 
 1. **`rustls` custom verifier API:** меняется между мажорными версиями `rustls`. Зафиксировать точную версию в workspace deps и readme. План: использовать `rustls::server::danger::ClientCertVerifier` (с `danger` feature) — это правильный путь для self-signed + fingerprint model.
 2. **Fingerprint DB race condition:** если GUI и daemon одновременно пишут fingerprints.toml — конфликт. В M2 не решаем (только daemon пишет); в M5 — через IPC-команду `add_peer_fingerprint` (единственный writer — daemon).
-3. **CN/SAN в self-signed cert:** что ставить? Предлагаю `input-leap-<random-suffix>` как SAN и DNS-имя. Verifier всё равно смотрит только на fingerprint, не на CN.
+3. **CN/SAN в self-signed cert:** что ставить? Предлагаю `hop-<random-suffix>` как SAN и DNS-имя. Verifier всё равно смотрит только на fingerprint, не на CN.
 4. **Windows cert storage permissions:** `0600` эквивалент через `windows-acl` или `windows-rs`. Первично — файл в user profile dir (уже изолирован ОС), acl опционально как hardening.
 5. **Graceful shutdown двух сторон:** кто инициирует `Disconnect`? — тот, кто получил `Ctrl+C`. Другая сторона видит `Disconnect` → закрывает stream → выход из event-loop. Проверить в e2e тесте.
 6. **`bytes::Bytes` во `ClipboardData` vs `Vec<u8>`:** для M2 неважно (clipboard в M4); упомянуто здесь, чтобы не забыть при проектировании `ClipboardData` в M1.

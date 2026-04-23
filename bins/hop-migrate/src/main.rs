@@ -1,12 +1,12 @@
-//! `input-leap-migrate` — one-shot conversion of legacy XML configs to TOML.
+//! `hop-migrate` — one-shot conversion of legacy XML configs to TOML.
 //!
 //! Stub for M0; real implementation lands alongside M4.
 
 use clap::Parser;
 
-/// Input Leap config migration tool.
+/// Hop config migration tool.
 #[derive(Debug, Parser)]
-#[command(name = "input-leap-migrate", version, about)]
+#[command(name = "hop-migrate", version, about)]
 struct Cli {}
 
 #[allow(
@@ -16,7 +16,7 @@ struct Cli {}
 fn main() -> anyhow::Result<()> {
     let _cli = Cli::parse();
     println!(
-        "input-leap-migrate {} — not implemented yet",
+        "hop-migrate {} — not implemented yet",
         env!("CARGO_PKG_VERSION")
     );
     Ok(())

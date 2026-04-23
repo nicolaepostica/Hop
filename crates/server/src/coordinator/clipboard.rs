@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use input_leap_common::ClipboardId;
+use hop_common::ClipboardId;
 
 use crate::coordinator::layout::ScreenName;
 

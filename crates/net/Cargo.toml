@@ -1,19 +1,19 @@
 [package]
-name        = "input-leap-net"
+name        = "hop-net"
 version     = { workspace = true }
 edition     = { workspace = true }
 rust-version = { workspace = true }
 license     = { workspace = true }
 repository  = { workspace = true }
 authors     = { workspace = true }
-description = "TCP + TLS transport and handshake for Input Leap."
+description = "TCP + TLS transport and handshake for Hop."
 
 [lints]
 workspace = true
 
 [dependencies]
-input-leap-common   = { workspace = true }
-input-leap-protocol = { workspace = true }
+hop-common   = { workspace = true }
+hop-protocol = { workspace = true }
 
 tokio            = { workspace = true, features = ["net", "rt", "macros", "time", "sync", "io-util"] }
 tokio-util       = { workspace = true, features = ["codec"] }

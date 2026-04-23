@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Identifies which logical clipboard a message refers to.
 ///
-/// Input Leap exposes two clipboards to match X11's selection model:
+/// Hop exposes two clipboards to match X11's selection model:
 /// the primary selection (mouse-driven) and the regular clipboard
 /// (Ctrl+C / Ctrl+V). Platforms without this distinction map both to
 /// the OS clipboard.

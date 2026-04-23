@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use futures::stream::Stream;
-use input_leap_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
+use hop_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
 use tokio_util::sync::{CancellationToken, DropGuard};
 
 use crate::error::PlatformError;

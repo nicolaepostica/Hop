@@ -1,4 +1,4 @@
-//! X11 backend for Input Leap (Linux and BSD).
+//! X11 backend for Hop (Linux and BSD).
 //!
 //! At M3 this implements the injection half of [`PlatformScreen`] via
 //! the `XTest` extension. Global input capture (`event_stream`) and

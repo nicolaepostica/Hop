@@ -1,25 +1,25 @@
 [package]
-name         = "input-leapc"
+name         = "hopc"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
 license      = { workspace = true }
 repository   = { workspace = true }
 authors      = { workspace = true }
-description  = "Input Leap client — receives input from a server and injects it locally."
+description  = "Hop client — receives input from a server and injects it locally."
 
 [lints]
 workspace = true
 
 [[bin]]
-name = "input-leapc"
+name = "hopc"
 path = "src/main.rs"
 
 [dependencies]
-input-leap-client   = { workspace = true }
-input-leap-config   = { workspace = true }
-input-leap-net      = { workspace = true }
-input-leap-platform = { workspace = true }
+hop-client   = { workspace = true }
+hop-config   = { workspace = true }
+hop-net      = { workspace = true }
+hop-platform = { workspace = true }
 
 anyhow             = { workspace = true }
 chrono             = { workspace = true }
@@ -30,16 +30,16 @@ tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
-input-leap-platform-x11 = { workspace = true }
+hop-platform-x11 = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-input-leap-platform-ei = { workspace = true }
+hop-platform-ei = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-input-leap-platform-macos = { workspace = true }
+hop-platform-macos = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-input-leap-platform-windows = { workspace = true }
+hop-platform-windows = { workspace = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

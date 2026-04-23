@@ -20,8 +20,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use input_leap_platform::PlatformScreen;
-use input_leap_protocol::{Capability, Message};
+use hop_platform::PlatformScreen;
+use hop_protocol::{Capability, Message};
 use tokio::select;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -307,8 +307,8 @@ fn log_err<E: std::fmt::Debug>(result: Result<(), E>, what: &'static str) {
 mod tests {
     use super::*;
     use crate::coordinator::layout::{LayoutStore, ScreenEntry, ScreenLayout};
-    use input_leap_common::{ClipboardFormat, ClipboardId};
-    use input_leap_platform::{InputEvent, MockScreen};
+    use hop_common::{ClipboardFormat, ClipboardId};
+    use hop_platform::{InputEvent, MockScreen};
     use tokio::time::{timeout, Duration};
 
     fn three_screen_layout() -> ScreenLayout {

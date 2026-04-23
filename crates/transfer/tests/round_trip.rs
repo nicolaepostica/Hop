@@ -9,9 +9,9 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use bytes::Bytes;
-use input_leap_common::{FileManifest, FileManifestEntry, TransferCancelReason};
-use input_leap_protocol::Message;
-use input_leap_transfer::{TransferError, TransferReceiver, TransferSender};
+use hop_common::{FileManifest, FileManifestEntry, TransferCancelReason};
+use hop_protocol::Message;
+use hop_transfer::{TransferError, TransferReceiver, TransferSender};
 use tempfile::TempDir;
 use tokio::fs;
 use tokio::sync::mpsc;
@@ -36,7 +36,7 @@ async fn run_transfer(
     staging_root: &std::path::Path,
     drop_dir: &std::path::Path,
     chunk_size: usize,
-) -> Result<Vec<input_leap_transfer::ReceivedFile>, TransferError> {
+) -> Result<Vec<hop_transfer::ReceivedFile>, TransferError> {
     let (tx, mut rx) = mpsc::channel::<Message>(64);
     let sender = TransferSender::new(42, chunk_size);
     let source = source_root.to_path_buf();

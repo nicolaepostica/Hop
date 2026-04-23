@@ -1,4 +1,4 @@
-//! Local IPC between the Input Leap daemon and its GUI.
+//! Local IPC between the Hop daemon and its GUI.
 //!
 //! Transport: newline-delimited JSON over a Unix domain socket
 //! (Linux/macOS) or a Named Pipe (Windows), wrapped by the

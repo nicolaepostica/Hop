@@ -1,6 +1,6 @@
 //! End-to-end exercise of the M11 coordinator subsystem.
 //!
-//! Drives [`spawn_coordinator`](input_leap_server::coordinator::spawn_coordinator)
+//! Drives [`spawn_coordinator`](hop_server::coordinator::spawn_coordinator)
 //! with three named screens (`laptop`, `desk`, `monitor`), registers
 //! two mock clients, and feeds a scripted `MouseMove` sequence that
 //! walks the cursor right across the layout boundary (`desk` → `monitor`)
@@ -18,9 +18,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use input_leap_platform::{InputEvent, MockScreen};
-use input_leap_protocol::Message;
-use input_leap_server::coordinator::{
+use hop_platform::{InputEvent, MockScreen};
+use hop_protocol::Message;
+use hop_server::coordinator::{
     spawn_coordinator, CoordinatorEvent, LayoutStore, ScreenEntry, ScreenLayout,
 };
 use tokio::sync::mpsc;

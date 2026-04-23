@@ -1,19 +1,19 @@
 [package]
-name        = "input-leap-platform-ei"
+name        = "hop-platform-ei"
 version     = { workspace = true }
 edition     = { workspace = true }
 rust-version = { workspace = true }
 license     = { workspace = true }
 repository  = { workspace = true }
 authors     = { workspace = true }
-description = "Wayland/libei backend for Input Leap via reis + xdg-desktop-portal."
+description = "Wayland/libei backend for Hop via reis + xdg-desktop-portal."
 
 [lints]
 workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
-input-leap-common   = { workspace = true }
-input-leap-platform = { workspace = true }
+hop-common   = { workspace = true }
+hop-platform = { workspace = true }
 
 async-trait = { workspace = true }
 bytes       = { workspace = true }

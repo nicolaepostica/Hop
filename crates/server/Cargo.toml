@@ -1,21 +1,21 @@
 [package]
-name        = "input-leap-server"
+name        = "hop-server"
 version     = { workspace = true }
 edition     = { workspace = true }
 rust-version = { workspace = true }
 license     = { workspace = true }
 repository  = { workspace = true }
 authors     = { workspace = true }
-description = "Server-side logic for Input Leap (screen routing, per-client proxies)."
+description = "Server-side logic for Hop (screen routing, per-client proxies)."
 
 [lints]
 workspace = true
 
 [dependencies]
-input-leap-common   = { workspace = true }
-input-leap-protocol = { workspace = true }
-input-leap-net      = { workspace = true }
-input-leap-platform = { workspace = true }
+hop-common   = { workspace = true }
+hop-protocol = { workspace = true }
+hop-net      = { workspace = true }
+hop-platform = { workspace = true }
 
 tokio     = { workspace = true, features = ["rt", "macros", "sync", "time", "signal"] }
 tokio-util = { workspace = true, features = ["rt"] }
@@ -28,7 +28,7 @@ tracing   = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-input-leap-client = { workspace = true }
+hop-client = { workspace = true }
 chrono            = { workspace = true }
 tempfile          = { workspace = true }
 tokio             = { workspace = true, features = ["rt-multi-thread", "macros", "time", "test-util"] }

@@ -1,26 +1,26 @@
 [package]
-name         = "input-leaps"
+name         = "hops"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
 license      = { workspace = true }
 repository   = { workspace = true }
 authors      = { workspace = true }
-description  = "Input Leap server — shares primary machine's input with clients."
+description  = "Hop server — shares primary machine's input with clients."
 
 [lints]
 workspace = true
 
 [[bin]]
-name = "input-leaps"
+name = "hops"
 path = "src/main.rs"
 
 [dependencies]
-input-leap-config   = { workspace = true }
-input-leap-ipc      = { workspace = true }
-input-leap-net      = { workspace = true }
-input-leap-platform = { workspace = true }
-input-leap-server   = { workspace = true }
+hop-config   = { workspace = true }
+hop-ipc      = { workspace = true }
+hop-net      = { workspace = true }
+hop-platform = { workspace = true }
+hop-server   = { workspace = true }
 
 anyhow             = { workspace = true }
 async-trait        = { workspace = true }
@@ -32,16 +32,16 @@ tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
-input-leap-platform-x11 = { workspace = true }
+hop-platform-x11 = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-input-leap-platform-ei = { workspace = true }
+hop-platform-ei = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-input-leap-platform-macos = { workspace = true }
+hop-platform-macos = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-input-leap-platform-windows = { workspace = true }
+hop-platform-windows = { workspace = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

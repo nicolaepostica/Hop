@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::Path;
 
-use input_leap_net::{load_or_generate_cert, TlsError};
+use hop_net::{load_or_generate_cert, TlsError};
 use tempfile::TempDir;
 
 #[test]

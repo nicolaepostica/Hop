@@ -1,6 +1,6 @@
 //! Self-signed mTLS setup with fingerprint-only peer verification.
 //!
-//! Input Leap does not use a PKI. Each host holds its own long-lived
+//! Hop does not use a PKI. Each host holds its own long-lived
 //! self-signed certificate; peers trust each other by listing SHA-256
 //! certificate fingerprints in a shared TOML database. This module
 //! builds the [`rustls`] configs that implement that model.
@@ -27,7 +27,7 @@ use crate::fingerprint::{Fingerprint, FingerprintDb};
 ///
 /// Peers never look at the name (trust is based on fingerprints), but
 /// rustls still requires a valid SAN during the handshake.
-pub const DEFAULT_CERT_SAN: &str = "input-leap";
+pub const DEFAULT_CERT_SAN: &str = "hop";
 
 /// Errors from the TLS setup helpers.
 #[derive(Debug, Error)]

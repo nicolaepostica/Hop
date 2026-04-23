@@ -1,7 +1,7 @@
 //! Keep-alive timing primitives for the server/client event loops.
 //!
 //! The wire protocol has no built-in heartbeating; both sides must
-//! inject [`KeepAlive`](input_leap_protocol::Message::KeepAlive)
+//! inject [`KeepAlive`](hop_protocol::Message::KeepAlive)
 //! frames on a timer and track when they last saw traffic from the
 //! peer. This module provides a small tracker that owns those two
 //! concerns without dictating how the surrounding `select!` loop is

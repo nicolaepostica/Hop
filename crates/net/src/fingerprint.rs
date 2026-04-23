@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn db_load_missing_file_is_empty() {
-        let tmp = std::env::temp_dir().join("input-leap-nonexistent.toml");
+        let tmp = std::env::temp_dir().join("hop-nonexistent.toml");
         let _ = std::fs::remove_file(&tmp);
         let db = FingerprintDb::load(&tmp).unwrap();
         assert!(db.is_empty());

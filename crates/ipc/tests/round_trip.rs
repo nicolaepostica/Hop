@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use input_leap_ipc::{
+use hop_ipc::{
     protocol::IpcError, IpcClient, IpcClientError, IpcHandler, IpcServer, StatusReply,
 };
 use tempfile::TempDir;

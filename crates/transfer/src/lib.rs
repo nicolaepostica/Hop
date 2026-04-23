@@ -19,7 +19,7 @@
 //!   traversal, and finalises atomically into the drop directory.
 //!
 //! Both sides work over any async channel that carries
-//! [`Message`](input_leap_protocol::Message) — in production that's
+//! [`Message`](hop_protocol::Message) — in production that's
 //! the framed TLS connection, in tests it's a `tokio::sync::mpsc`.
 
 pub mod error;

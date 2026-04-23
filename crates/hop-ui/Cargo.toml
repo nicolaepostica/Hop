@@ -1,0 +1,26 @@
+[package]
+name        = "hop-ui"
+version     = { workspace = true }
+edition     = { workspace = true }
+rust-version = { workspace = true }
+license     = { workspace = true }
+repository  = { workspace = true }
+authors     = { workspace = true }
+description = "egui-based desktop UI for Hop (Hop)."
+
+[lints]
+workspace = true
+
+[dependencies]
+eframe        = { workspace = true }
+egui          = { workspace = true }
+egui-phosphor = { workspace = true }
+egui-notify   = { workspace = true }
+tracing       = { workspace = true }
+arboard       = { workspace = true }
+qrcode        = { workspace = true }
+directories   = { workspace = true }
+anyhow        = { workspace = true }
+
+hop-net    = { workspace = true }
+hop-config = { workspace = true }

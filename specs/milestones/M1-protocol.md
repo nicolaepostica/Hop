@@ -2,7 +2,7 @@
 
 ## Цель
 
-Реализовать полную схему сетевых сообщений Input Leap v1 на serde+CBOR с length-delimited фреймингом. По завершении M1 любой крейт может импортировать `input_leap_protocol::{Message, Codec, ProtocolError}` и работать с серилизованными сообщениями поверх произвольного `AsyncRead`/`AsyncWrite`, даже без настоящей сети.
+Реализовать полную схему сетевых сообщений Hop v1 на serde+CBOR с length-delimited фреймингом. По завершении M1 любой крейт может импортировать `hop_protocol::{Message, Codec, ProtocolError}` и работать с серилизованными сообщениями поверх произвольного `AsyncRead`/`AsyncWrite`, даже без настоящей сети.
 
 ## Предпосылки
 
@@ -94,7 +94,7 @@
   //! # Example
   //! ```no_run
   //! # use tokio::net::TcpStream;
-  //! # use input_leap_protocol::{framed, Message, HelloPayload, Capability};
+  //! # use hop_protocol::{framed, Message, HelloPayload, Capability};
   //! # async fn demo(stream: TcpStream) -> Result<(), Box<dyn std::error::Error>> {
   //! use futures::{SinkExt, StreamExt};
   //! let mut conn = framed(stream);

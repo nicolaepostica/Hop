@@ -1,18 +1,18 @@
 [package]
-name        = "input-leap-platform"
+name        = "hop-platform"
 version     = { workspace = true }
 edition     = { workspace = true }
 rust-version = { workspace = true }
 license     = { workspace = true }
 repository  = { workspace = true }
 authors     = { workspace = true }
-description = "PlatformScreen trait and MockScreen for Input Leap."
+description = "PlatformScreen trait and MockScreen for Hop."
 
 [lints]
 workspace = true
 
 [dependencies]
-input-leap-common = { workspace = true }
+hop-common = { workspace = true }
 
 async-trait = { workspace = true }
 bytes       = { workspace = true }

@@ -6,7 +6,7 @@
 //! `tests/roundtrip.rs`.
 
 use bytes::BytesMut;
-use input_leap_protocol::{Message, MessageCodec, ProtocolError, MAX_FRAME_BYTES};
+use hop_protocol::{Message, MessageCodec, ProtocolError, MAX_FRAME_BYTES};
 use tokio_util::codec::{Decoder, Encoder};
 
 fn encode(message: Message) -> BytesMut {

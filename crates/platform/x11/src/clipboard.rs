@@ -44,8 +44,8 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use crossbeam_channel::{select, unbounded, Receiver, Sender};
-use input_leap_common::{ClipboardFormat, ClipboardId};
-use input_leap_platform::PlatformError;
+use hop_common::{ClipboardFormat, ClipboardId};
+use hop_platform::PlatformError;
 use tokio::sync::oneshot;
 use tracing::{debug, warn};
 use x11rb::connection::Connection;
@@ -197,8 +197,8 @@ impl Atoms {
             utf8_string: intern_one(conn, b"UTF8_STRING")?,
             html: intern_one(conn, b"text/html")?,
             targets: intern_one(conn, b"TARGETS")?,
-            reply_prop: intern_one(conn, b"INPUT_LEAP_CLIPBOARD")?,
-            wakeup: intern_one(conn, b"INPUT_LEAP_WAKEUP")?,
+            reply_prop: intern_one(conn, b"HOP_CLIPBOARD")?,
+            wakeup: intern_one(conn, b"HOP_WAKEUP")?,
         })
     }
 

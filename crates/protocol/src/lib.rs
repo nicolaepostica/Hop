@@ -1,4 +1,4 @@
-//! Input Leap wire protocol v1.
+//! Hop wire protocol v1.
 //!
 //! Messages are serialized with CBOR (RFC 8949) and framed with a
 //! length-delimited codec: a 4-byte big-endian length prefix followed
@@ -9,12 +9,12 @@
 //!
 //! ```no_run
 //! use futures::{SinkExt, StreamExt};
-//! use input_leap_protocol::{framed, Capability, HelloPayload, Message};
+//! use hop_protocol::{framed, Capability, HelloPayload, Message};
 //!
 //! # async fn demo(stream: tokio::net::TcpStream) -> Result<(), Box<dyn std::error::Error>> {
 //! let mut conn = framed(stream);
 //! conn.send(Message::Hello(HelloPayload {
-//!     protocol_version: input_leap_protocol::PROTOCOL_VERSION,
+//!     protocol_version: hop_protocol::PROTOCOL_VERSION,
 //!     display_name: "laptop".into(),
 //!     capabilities: vec![Capability::UnicodeClipboard],
 //! })).await?;

@@ -1,5 +1,5 @@
 [package]
-name         = "input-leap-transfer"
+name         = "hop-transfer"
 version      = { workspace = true }
 edition      = { workspace = true }
 rust-version = { workspace = true }
@@ -12,8 +12,8 @@ description  = "File-clipboard transfer engine (sender + receiver + path guards)
 workspace = true
 
 [dependencies]
-input-leap-common   = { workspace = true }
-input-leap-protocol = { workspace = true }
+hop-common   = { workspace = true }
+hop-protocol = { workspace = true }
 
 bytes     = { workspace = true }
 tokio     = { workspace = true, features = ["rt", "fs", "macros", "sync", "io-util"] }

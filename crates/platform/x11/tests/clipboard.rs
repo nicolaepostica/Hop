@@ -12,9 +12,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
-use input_leap_common::{ClipboardFormat, ClipboardId};
-use input_leap_platform::PlatformScreen;
-use input_leap_platform_x11::X11Screen;
+use hop_common::{ClipboardFormat, ClipboardId};
+use hop_platform::PlatformScreen;
+use hop_platform_x11::X11Screen;
 
 fn next_display() -> String {
     static COUNTER: AtomicU32 = AtomicU32::new(80);
@@ -76,7 +76,7 @@ async fn text_round_trip_within_process() {
         .set_clipboard(
             ClipboardId::Clipboard,
             ClipboardFormat::Text,
-            Bytes::from_static(b"hello from input-leap"),
+            Bytes::from_static(b"hello from hop"),
         )
         .await
         .unwrap();
@@ -88,7 +88,7 @@ async fn text_round_trip_within_process() {
         .get_clipboard(ClipboardId::Clipboard, ClipboardFormat::Text)
         .await
         .unwrap();
-    assert_eq!(got.as_ref(), b"hello from input-leap");
+    assert_eq!(got.as_ref(), b"hello from hop");
 }
 
 #[tokio::test(flavor = "multi_thread")]

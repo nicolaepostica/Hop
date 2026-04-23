@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use directories::{ProjectDirs, UserDirs};
 
 const QUALIFIER: &str = "com";
-const ORGANIZATION: &str = "InputLeap";
-const APPLICATION: &str = "input-leap";
+const ORGANIZATION: &str = "Hop";
+const APPLICATION: &str = "hop";
 
 /// Project-scoped directories (XDG on Linux, standard locations elsewhere).
 fn project_dirs() -> Option<ProjectDirs> {
@@ -30,16 +30,16 @@ pub fn default_layout_path() -> Option<PathBuf> {
 }
 
 /// Default drop directory for received files
-/// (`<user-download>/InputLeap`). Falls back to the temp dir if the
+/// (`<user-download>/Hop`). Falls back to the temp dir if the
 /// user doesn't have a recognisable Downloads folder.
 #[must_use]
 pub fn default_drop_directory() -> PathBuf {
     if let Some(user) = UserDirs::new() {
         if let Some(downloads) = user.download_dir() {
-            return downloads.join("InputLeap");
+            return downloads.join("Hop");
         }
     }
-    std::env::temp_dir().join("InputLeap")
+    std::env::temp_dir().join("Hop")
 }
 
 /// Expand `~` and `$VAR` sequences in a user-supplied path.
@@ -76,14 +76,14 @@ mod tests {
         // SAFETY: test is single-threaded and cleans the variable up
         // immediately; no concurrent readers racing with us.
         unsafe {
-            std::env::set_var("INPUT_LEAP_TEST_DIR", "/opt/inputleap");
+            std::env::set_var("HOP_TEST_DIR", "/opt/inputleap");
         }
-        let raw = Path::new("$INPUT_LEAP_TEST_DIR/cfg");
+        let raw = Path::new("$HOP_TEST_DIR/cfg");
         let got = expand_user_path(raw).unwrap();
         assert_eq!(got, PathBuf::from("/opt/inputleap/cfg"));
         // SAFETY: same reasoning as the set_var above.
         unsafe {
-            std::env::remove_var("INPUT_LEAP_TEST_DIR");
+            std::env::remove_var("HOP_TEST_DIR");
         }
     }
 }

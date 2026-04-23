@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
-#[command(name = "xtask", about = "Input Leap dev task runner")]
+#[command(name = "xtask", about = "Hop dev task runner")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,

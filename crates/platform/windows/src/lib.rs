@@ -1,4 +1,4 @@
-//! Windows backend for Input Leap (Win32 via `windows-rs`).
+//! Windows backend for Hop (Win32 via `windows-rs`).
 //!
 //! # Status
 //!

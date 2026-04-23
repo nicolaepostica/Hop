@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use input_leap_common::TransferCancelReason;
+use hop_common::TransferCancelReason;
 use thiserror::Error;
 
 /// Everything that can go wrong during a transfer.

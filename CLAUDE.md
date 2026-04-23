@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## What is Input Leap
+## What is Hop
 
-Input Leap is a KVM-over-IP software fork of Barrier/Synergy that lets one keyboard and mouse control multiple computers. A **server** (primary machine) shares its input devices with **clients** (secondary machines) over TCP/IP, optionally with SSL/TLS.
+Hop is a KVM-over-IP software fork of Barrier/Synergy that lets one keyboard and mouse control multiple computers. A **server** (primary machine) shares its input devices with **clients** (secondary machines) over TCP/IP, optionally with SSL/TLS.
 
 ## Build Commands
 
@@ -54,10 +54,10 @@ Test locations:
 
 | Binary | Purpose |
 |--------|---------|
-| `input-leaps` | Server — runs on the primary machine, shares its keyboard/mouse |
-| `input-leapc` | Client — runs on secondary machines, receives input |
-| `input-leap` | GUI — Qt desktop app to configure and launch server/client |
-| `input-leapd` | Daemon — Windows service enabling pre-login input sharing |
+| `hops` | Server — runs on the primary machine, shares its keyboard/mouse |
+| `hopc` | Client — runs on secondary machines, receives input |
+| `hop` | GUI — egui desktop app to configure and launch server/client |
+| `hopd` | Daemon — Windows service enabling pre-login input sharing |
 
 ### Library Structure (`src/lib/`)
 
@@ -82,9 +82,9 @@ User Input on Primary
        ↓
 Platform Layer (XWindows/OSX/MSWindows)
        ↓
-Server (input-leaps)  ←──IPC──→  GUI (input-leap)
+Server (hops)  ←──IPC──→  GUI (hop)
        ↓ TCP/SSL port 24800
-Client (input-leapc)
+Client (hopc)
        ↓
 Platform Layer (secondary machine)
        ↓

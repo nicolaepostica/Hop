@@ -8,8 +8,8 @@
 
 use bytes::Bytes;
 use futures::stream;
-use input_leap_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
-use input_leap_platform::{EventStream, PlatformError, PlatformScreen, ScreenInfo};
+use hop_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
+use hop_platform::{EventStream, PlatformError, PlatformScreen, ScreenInfo};
 use tracing::warn;
 
 /// Wayland / libei platform backend (scaffold).

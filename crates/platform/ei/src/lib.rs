@@ -1,4 +1,4 @@
-//! Wayland/libei backend for Input Leap.
+//! Wayland/libei backend for Hop.
 //!
 //! # Status
 //!

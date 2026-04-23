@@ -43,9 +43,9 @@
   - `crates/platform/windows/` (с `#[cfg(windows)]`)
   - `crates/platform/ei/` (с `#[cfg(target_os = "linux")]`)
 - [ ] Создать пустые бинарные крейты:
-  - `bins/input-leaps/` с `fn main()` печатающим version
-  - `bins/input-leapc/` с `fn main()` печатающим version
-  - `bins/input-leap-migrate/` (за feature flag, не билдится по умолчанию)
+  - `bins/hops/` с `fn main()` печатающим version
+  - `bins/hopc/` с `fn main()` печатающим version
+  - `bins/hop-migrate/` (за feature flag, не билдится по умолчанию)
 - [ ] Создать `xtask/` с заглушками `cargo xtask ci`, `cargo xtask fmt`
 - [ ] Каждый крейт — `lib.rs` с `#![deny(warnings, unsafe_code)]` (snap-level, `unsafe` разрешается только в `platform/*/ffi.rs` через `#[allow(unsafe_code)]` локально)
 
@@ -132,7 +132,7 @@
 - [ ] `cargo nextest run --workspace` — 0 tests, 0 failures (OK для M0)
 - [ ] `cargo deny check` — green
 - [ ] CI workflow триггерится на push/PR и проходит на всех трёх ОС
-- [ ] `./target/release/input-leaps --version` и `./target/release/input-leapc --version` печатают корректную версию из `Cargo.toml`
+- [ ] `./target/release/hops --version` и `./target/release/hopc --version` печатают корректную версию из `Cargo.toml`
 - [ ] Все крейты видны в `cargo tree --workspace`
 
 ## Тесты
@@ -147,4 +147,4 @@
 2. **`reis` версия нестабильна.** Перед M0 проверить, что актуальный релиз собирается. Если нет — отложить до M6, добавить `reis` в `[workspace.dependencies]` как `optional = true` без вытягивания.
 3. **`cargo-deny` на Windows:** исторически флакает на лицензиях — запускать только на Linux, это нормально.
 4. **MSRV 1.75:** фиксированный минимум для AFIT-в-трейтах. Если к моменту M0 выйдет новая stable — подтянуть (не наоборот, не опускать ниже 1.75).
-5. **Naming:** workspace-package = `input-leap-rs`? Или оставить `input-leap` и переименовать после удаления C++? Рекомендую `input-leap-rs` до M10, чтобы не конфликтовать с C++-артефактами в CI на переходном этапе (даже если нет wire-compat, build-артефакты могут пересекаться).
+5. **Naming:** workspace-package = `hop`? Или оставить `input-leap` и переименовать после удаления C++? Рекомендую `hop` до M10, чтобы не конфликтовать с C++-артефактами в CI на переходном этапе (даже если нет wire-compat, build-артефакты могут пересекаться).

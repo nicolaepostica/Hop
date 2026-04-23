@@ -1,8 +1,8 @@
-# Spec: Input Leap — Переписывание на Rust
+# Spec: Hop — Переписывание на Rust
 
 ## Цель
 
-Полностью переписать Input Leap на Rust. Заменить ручной event loop, самописную абстракцию потоков и OpenSSL на современный стек: `tokio`, `rustls`, `tracing`. Отказаться от обратной совместимости с C++-версией и Synergy/Barrier — это даёт возможность спроектировать сетевой протокол, конфигурацию и IPC с нуля, по-Rust-овски, без legacy wire-форматов.
+Полностью переписать Hop на Rust. Заменить ручной event loop, самописную абстракцию потоков и OpenSSL на современный стек: `tokio`, `rustls`, `tracing`. Отказаться от обратной совместимости с C++-версией и Synergy/Barrier — это даёт возможность спроектировать сетевой протокол, конфигурацию и IPC с нуля, по-Rust-овски, без legacy wire-форматов.
 
 Мотивы: устранение класса memory-safety багов, нативная поддержка Wayland через libei/portal без FFI-костылей, упрощение кода за счёт стандартных крейтов, type-safe протокол с эволюцией через версионирование.
 
@@ -10,12 +10,12 @@
 
 Текущая реализация — C++14. Использует самописный `EventQueue`, `SocketMultiplexer` с polling-потоком, платформенные `Arch*`-фасады, OpenSSL напрямую, XML-конфиг (наследие Synergy), бинарный wire-протокол с 4-байтовыми ASCII-кодами сообщений и big-endian кодированием.
 
-**Обратная совместимость с C++-версией Input Leap и с Synergy/Barrier НЕ требуется.** Переходный период между C++ и Rust отсутствует — пользователи обновляют сервер и клиенты одновременно. Это позволяет снять все legacy-ограничения wire-формата, конфигурации и IPC.
+**Обратная совместимость с C++-версией Hop и с Synergy/Barrier НЕ требуется.** Переходный период между C++ и Rust отсутствует — пользователи обновляют сервер и клиенты одновременно. Это позволяет снять все legacy-ограничения wire-формата, конфигурации и IPC.
 
 ## Scope
 
 **In scope:**
-- `input-leaps` (сервер) и `input-leapc` (клиент) на Rust
+- `hops` (сервер) и `hopc` (клиент) на Rust
 - Новый сетевой протокол v1 на CBOR (RFC 8949) + length-delimited фрейминге
 - TLS через `rustls` + self-signed cert с fingerprint-верификацией
 - Платформенные backend-ы: X11 (`x11rb`), macOS (`core-graphics`/`objc2`), Windows (`windows-rs`), Wayland (libei через `reis`)
@@ -25,14 +25,14 @@
 - Тесты: unit (`proptest` round-trip) + integration (сеть, IPC, платформы)
 
 **Out of scope первой итерации:**
-- Переписывание Qt GUI (`input-leap`) — остаётся C++, адаптируется под новый IPC
+- Qt GUI заменён на новый egui-бинарь `hop`
 - Drag & drop — после MVP
 - File clipboard — отдельный спек (`specs/file-clipboard.md`), milestone M9
-- Windows service (`input-leapd`) — тонкая обёртка через `windows-service` крейт в M10, не отдельный codebase
+- Windows service (`hopd`) — тонкая обёртка через `windows-service` крейт в M10, не отдельный codebase
 
 ## Requirements
 
-1. Бинарники `input-leaps` и `input-leapc` на Rust замещают C++-версии; пользователь обновляется single-step одновременно на всех машинах (сервер и клиенты).
+1. Бинарники `hops` и `hopc` на Rust замещают C++-версии; пользователь обновляется single-step одновременно на всех машинах (сервер и клиенты).
 2. Все I/O — неблокирующие, на `tokio`. Никакого polling-потока, никакого самописного multiplexer'а.
 3. TLS через `rustls` (`tokio-rustls`); fingerprint DB в TOML-формате с комментариями.
 4. Платформенный слой — трейт `PlatformScreen` с AFIT (`-> impl Future`); `#[async_trait]` только там, где AFIT не работает (dyn-trait).
@@ -71,7 +71,7 @@ PlatformScreen (X11/macOS/Win/EI)           PlatformScreen (X11/macOS/Win/EI)
 ### Структура воркспейса (Cargo workspace)
 
 ```
-input-leap-rs/
+hop/
   Cargo.toml                   # [workspace] + [workspace.dependencies]
   rust-toolchain.toml          # pinned MSRV (stable, >= 1.75 для AFIT)
   rustfmt.toml
@@ -92,9 +92,9 @@ input-leap-rs/
       windows/
       ei/                      # Wayland/libei
   bins/
-    input-leaps/               # сервер
-    input-leapc/               # клиент
-    input-leap-migrate/        # one-shot миграция XML → TOML (необяз. бинарь)
+    hops/               # сервер
+    hopc/               # клиент
+    hop-migrate/        # one-shot миграция XML → TOML (необяз. бинарь)
   xtask/                       # dev-команды: xtask ci, xtask release, ...
 ```
 
@@ -188,16 +188,16 @@ pub trait PlatformScreen: Send + Sync {
 **Server routing:** `tokio::sync::mpsc` между задачами: `PlatformReader` → `Router` → `ClientProxy` (по одному на клиента). Screen layout — `Arc<arc_swap::ArcSwap<ScreenLayout>>` для lock-free чтения горячего пути.
 
 **IPC (`ipc` crate):** `interprocess::local_socket` для Unix-domain / Named pipe. Путь:
-- Linux: `$XDG_RUNTIME_DIR/input-leap/daemon.sock`
-- macOS: `$TMPDIR/input-leap/daemon.sock`
-- Windows: `\\.\pipe\input-leap-daemon`
+- Linux: `$XDG_RUNTIME_DIR/hop/daemon.sock`
+- macOS: `$TMPDIR/hop/daemon.sock`
+- Windows: `\\.\pipe\hop-daemon`
 
 Протокол — newline-delimited JSON в стиле JSON-RPC 2.0 (`{ "id", "method", "params" }` + notifications без `id`). Методы: `get_status`, `reload_config`, `add_peer_fingerprint`, `subscribe_logs`, ...
 
 **Конфигурация (`config` crate):** `figment` оборачивает:
 1. Дефолты (hardcoded в крейте)
 2. Файл `<config_dir>/config.toml`
-3. Env `INPUT_LEAP_*`
+3. Env `HOP_*`
 4. CLI аргументы (`clap` derive)
 
 Типизированные структуры, валидация на `TryFrom<RawConfig, Error = ConfigError>`.
@@ -223,7 +223,7 @@ pub enum ProtocolError {
 
 Бинари используют `anyhow::Result<()>` в `main` + `.context(...)` на стыках.
 
-**Пути:** `directories::ProjectDirs::from("com", "InputLeap", "input-leap")`.
+**Пути:** `directories::ProjectDirs::from("com", "Hop", "hop")`.
 
 **Reconnect:** `backoff` крейт, exponential, 1 с → 30 с max, jitter.
 
@@ -260,7 +260,7 @@ pub enum ProtocolError {
 | M7 | `platform/macos` | заголовок |
 | M8 | `platform/windows` | заголовок |
 | M9 | File clipboard (см. `specs/file-clipboard.md`) | заголовок |
-| M10 | Windows service обёртка (`input-leaps --service`) | заголовок |
+| M10 | Windows service обёртка (`hops --service`) | заголовок |
 
 Детальные подспеки для M3–M10 пишутся по мере приближения к milestone.
 
@@ -268,4 +268,4 @@ pub enum ProtocolError {
 
 1. **`#[serde(other)]` fallback для `Capability`:** нужен ли forward-compat для неизвестных capability-вариантов (старый клиент + новый сервер с extra cap)? Рекомендую да — `#[serde(other)] Unknown` вариант, на старом клиенте просто игнорируется.
 2. **Screen layout: `arc_swap` vs `tokio::sync::RwLock`:** `arc_swap` быстрее на чтении (lock-free), но reload через GUI редкий. Решить при реализации M3.
-3. **`input-leap-migrate` XML→TOML:** включать в default install или отдельный download? Рекомендую отдельный — не нужен большинству новых пользователей.
+3. **`hop-migrate` XML→TOML:** включать в default install или отдельный download? Рекомендую отдельный — не нужен большинству новых пользователей.

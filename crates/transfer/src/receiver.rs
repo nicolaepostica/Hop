@@ -16,7 +16,7 @@
 
 use std::path::{Path, PathBuf};
 
-use input_leap_common::{FileManifest, TransferCancelReason, TransferId};
+use hop_common::{FileManifest, TransferCancelReason, TransferId};
 use tokio::io::AsyncWriteExt;
 use tracing::{info, warn};
 

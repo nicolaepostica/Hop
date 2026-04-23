@@ -1,12 +1,12 @@
 [package]
-name        = "input-leap-ipc"
+name        = "hop-ipc"
 version     = { workspace = true }
 edition     = { workspace = true }
 rust-version = { workspace = true }
 license     = { workspace = true }
 repository  = { workspace = true }
 authors     = { workspace = true }
-description = "Local IPC (unix socket / named pipe) between Input Leap daemon and GUI."
+description = "Local IPC (unix socket / named pipe) between Hop daemon and GUI."
 
 [lints]
 workspace = true

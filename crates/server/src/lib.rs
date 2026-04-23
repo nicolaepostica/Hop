@@ -1,4 +1,4 @@
-//! Input Leap server.
+//! Hop server.
 //!
 //! M11 wires the [`Coordinator`](coordinator::Coordinator) state
 //! machine into the accept loop: each connected peer owns a
@@ -14,12 +14,12 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use input_leap_net::{
+use hop_net::{
     build_server_config, server_handshake, AcceptError, ConnectedStream, FingerprintDb,
     HandshakeError, Listener, LoadedIdentity, TlsError,
 };
-use input_leap_platform::PlatformScreen;
-use input_leap_protocol::{
+use hop_platform::PlatformScreen;
+use hop_protocol::{
     Capability, DeviceInfoPayload, HelloPayload, Message, ProtocolError, PROTOCOL_VERSION,
 };
 use thiserror::Error;
@@ -88,7 +88,7 @@ pub struct ServerConfig {
     pub layout: SharedLayout,
 }
 
-/// A bound-but-not-yet-serving Input Leap server.
+/// A bound-but-not-yet-serving Hop server.
 ///
 /// Split out from [`run`] so tests (and `--print-address`-style CLIs)
 /// can learn the OS-assigned port before entering the accept loop.
@@ -305,7 +305,7 @@ where
     Ok(())
 }
 
-/// Background task: pump [`InputEvent`](input_leap_platform::InputEvent)s
+/// Background task: pump [`InputEvent`](hop_platform::InputEvent)s
 /// from the local platform into the coordinator.
 ///
 /// Exits on shutdown, when the event stream ends, or when the

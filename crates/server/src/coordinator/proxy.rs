@@ -9,8 +9,8 @@
 //!  - drains outbound `Message`s from a dedicated mpsc channel the
 //!    coordinator writes into, pushing them out to the peer;
 //!  - runs keep-alive bookkeeping (emit our own every
-//!    [`KEEPALIVE_INTERVAL`](input_leap_net::KEEPALIVE_INTERVAL), time
-//!    out after [`KEEPALIVE_TIMEOUT`](input_leap_net::KEEPALIVE_TIMEOUT));
+//!    [`KEEPALIVE_INTERVAL`](hop_net::KEEPALIVE_INTERVAL), time
+//!    out after [`KEEPALIVE_TIMEOUT`](hop_net::KEEPALIVE_TIMEOUT));
 //!  - always ends by sending a
 //!    [`CoordinatorEvent::ClientDisconnected`] so the coordinator can
 //!    garbage-collect its routing tables.
@@ -19,8 +19,8 @@
 //! drive it with `tokio::io::duplex` instead of a real TLS socket.
 
 use futures::{SinkExt, StreamExt};
-use input_leap_net::KeepAliveTracker;
-use input_leap_protocol::{framed, DisconnectReason, Message, MessageCodec, ProtocolError};
+use hop_net::KeepAliveTracker;
+use hop_protocol::{framed, DisconnectReason, Message, MessageCodec, ProtocolError};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::select;
 use tokio::sync::mpsc;
@@ -203,7 +203,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use input_leap_common::{ClipboardId, KeyId, ModifierMask};
+    use hop_common::{ClipboardId, KeyId, ModifierMask};
     use tokio::io::duplex;
     use tokio::time::{timeout, Duration};
 

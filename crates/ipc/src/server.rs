@@ -30,11 +30,11 @@ pub fn default_socket_path() -> PathBuf {
     if cfg!(target_os = "linux") {
         if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
             return PathBuf::from(runtime)
-                .join("input-leap")
+                .join("hop")
                 .join("daemon.sock");
         }
     }
-    std::env::temp_dir().join("input-leap").join("daemon.sock")
+    std::env::temp_dir().join("hop").join("daemon.sock")
 }
 
 /// Errors from the IPC server's own lifecycle (not per-connection).

@@ -1,6 +1,6 @@
 //! Errors produced by platform backends.
 
-use input_leap_common::ClipboardFormat;
+use hop_common::ClipboardFormat;
 use thiserror::Error;
 
 /// Errors a backend may return from trait methods.

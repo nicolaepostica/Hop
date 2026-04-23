@@ -16,9 +16,9 @@
 
 use std::collections::BTreeSet;
 
-use input_leap_common::{ButtonId, KeyId, ModifierMask};
-use input_leap_platform::InputEvent;
-use input_leap_protocol::Message;
+use hop_common::{ButtonId, KeyId, ModifierMask};
+use hop_platform::InputEvent;
+use hop_protocol::Message;
 
 /// Tracked input state on the active screen.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -8,11 +8,11 @@
 use std::path::PathBuf;
 
 use bytes::Bytes;
-use input_leap_common::{
+use hop_common::{
     ButtonId, ClipboardFormat, ClipboardId, FileManifest, FileManifestEntry, KeyId, ModifierMask,
     TransferCancelReason,
 };
-use input_leap_protocol::{
+use hop_protocol::{
     Capability, DeviceInfoPayload, DisconnectReason, HelloPayload, Message, PROTOCOL_VERSION,
 };
 use proptest::prelude::*;

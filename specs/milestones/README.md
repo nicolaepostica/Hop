@@ -1,6 +1,6 @@
 # Milestones — Rust Rewrite
 
-План переписывания Input Leap на Rust разбит на вертикальные срезы. Каждый milestone заканчивается работающим артефактом (запускаемый бинарь, проходящий интеграционный тест или рабочая end-to-end демка).
+План переписывания Hop на Rust разбит на вертикальные срезы. Каждый milestone заканчивается работающим артефактом (запускаемый бинарь, проходящий интеграционный тест или рабочая end-to-end демка).
 
 Главный спек: [`../rust-rewrite.md`](../rust-rewrite.md).
 
@@ -18,7 +18,7 @@
 | M7 | `platform/macos` | пишется при приближении |
 | M8 | `platform/windows` | пишется при приближении |
 | M9 | File clipboard (см. [`../file-clipboard.md`](../file-clipboard.md)) | пишется при приближении |
-| M10 | Windows service mode (`input-leaps --service`) | пишется при приближении |
+| M10 | Windows service mode (`hops --service`) | пишется при приближении |
 
 ## Принципы декомпозиции
 

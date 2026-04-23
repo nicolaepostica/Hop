@@ -1,6 +1,6 @@
-//! CLI smoke tests for `input-leapc`.
+//! CLI smoke tests for `hopc`.
 //!
-//! Mirror of `input-leaps/tests/cli.rs`: both bins expose the same
+//! Mirror of `hops/tests/cli.rs`: both bins expose the same
 //! fingerprint management UX so they are worth keeping symmetric.
 
 use assert_cmd::Command;
@@ -8,7 +8,7 @@ use predicates::prelude::*;
 use tempfile::TempDir;
 
 fn bin() -> Command {
-    Command::cargo_bin("input-leapc").expect("binary in CARGO_BIN_EXE_*")
+    Command::cargo_bin("hopc").expect("binary in CARGO_BIN_EXE_*")
 }
 
 #[test]
@@ -17,7 +17,7 @@ fn version_flag() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::starts_with("input-leapc "));
+        .stdout(predicate::str::starts_with("hopc "));
 }
 
 #[test]

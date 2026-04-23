@@ -1,19 +1,19 @@
 [package]
-name        = "input-leap-platform-macos"
+name        = "hop-platform-macos"
 version     = { workspace = true }
 edition     = { workspace = true }
 rust-version = { workspace = true }
 license     = { workspace = true }
 repository  = { workspace = true }
 authors     = { workspace = true }
-description = "macOS backend for Input Leap."
+description = "macOS backend for Hop."
 
 [lints]
 workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-input-leap-common   = { workspace = true }
-input-leap-platform = { workspace = true }
+hop-common   = { workspace = true }
+hop-platform = { workspace = true }
 
 async-trait   = { workspace = true }
 bytes         = { workspace = true }

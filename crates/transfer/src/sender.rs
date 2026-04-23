@@ -3,8 +3,8 @@
 use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
-use input_leap_common::{FileManifest, FileManifestEntry, TransferId};
-use input_leap_protocol::Message;
+use hop_common::{FileManifest, FileManifestEntry, TransferId};
+use hop_protocol::Message;
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 use tracing::debug;

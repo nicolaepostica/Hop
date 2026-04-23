@@ -1,4 +1,4 @@
-//! `input-leaps` — Input Leap server binary.
+//! `hops` — Hop server binary.
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -7,24 +7,24 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::{Parser, Subcommand};
-use input_leap_config::{
+use hop_config::{
     default_config_path, default_layout_path, load_server_settings, ConfigOverrides,
     ServerSettings,
 };
 use async_trait::async_trait;
-use input_leap_ipc::{
+use hop_ipc::{
     default_socket_path, protocol::IpcError, IpcHandler, IpcServer, StatusReply,
 };
-use input_leap_net::{load_or_generate_cert, Fingerprint, FingerprintDb, PeerEntry};
-use input_leap_server::coordinator::LayoutStore;
-use input_leap_server::ServerConfig;
+use hop_net::{load_or_generate_cert, Fingerprint, FingerprintDb, PeerEntry};
+use hop_server::coordinator::LayoutStore;
+use hop_server::ServerConfig;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-/// Input Leap server.
+/// Hop server.
 #[derive(Debug, Parser)]
-#[command(name = "input-leaps", version, about)]
+#[command(name = "hops", version, about)]
 struct Cli {
     /// Subcommand; if omitted, starts the server.
     #[command(subcommand)]
@@ -97,7 +97,7 @@ struct ServerArgs {
     layout: Option<PathBuf>,
     /// Path to the IPC socket for the GUI to connect to.
     ///
-    /// Defaults to `<runtime>/input-leap/daemon.sock`. Pass a path or
+    /// Defaults to `<runtime>/hop/daemon.sock`. Pass a path or
     /// use `--no-ipc` to disable the IPC server entirely.
     #[arg(long, conflicts_with = "no_ipc")]
     ipc_socket: Option<PathBuf>,
@@ -109,7 +109,7 @@ struct ServerArgs {
     /// When set on Windows, the process registers with the Service
     /// Control Manager via `windows-service` and turns into a service
     /// dispatcher. On non-Windows targets the flag is accepted but
-    /// ignored with a warning so the same `input-leaps --service`
+    /// ignored with a warning so the same `hops --service`
     /// command line compiles everywhere.
     #[arg(long)]
     service: bool,
@@ -129,7 +129,7 @@ async fn main() -> Result<()> {
 fn init_tracing() {
     use tracing_subscriber::{fmt, EnvFilter};
     let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("input_leap=info,info"));
+        .unwrap_or_else(|_| EnvFilter::new("hop=info,info"));
     fmt()
         .with_env_filter(filter)
         .with_target(false)
@@ -208,7 +208,7 @@ async fn run_server(common: CommonArgs, server: ServerArgs) -> Result<()> {
     if trusted.is_empty() {
         tracing::warn!(
             "fingerprint DB is empty — no peers will be accepted. \
-             Add peers with `input-leaps fingerprint add`."
+             Add peers with `hops fingerprint add`."
         );
     }
 
@@ -421,7 +421,7 @@ fn run_fingerprint(args: FingerprintArgs) -> Result<()> {
     }
 }
 
-/// Per-OS backend selection for `input-leaps`.
+/// Per-OS backend selection for `hops`.
 ///
 /// Each `#[cfg]` block below is mutually exclusive; at compile time
 /// exactly one of the "try X before falling back" blocks is kept, and
@@ -434,15 +434,15 @@ mod backend {
     use std::sync::Arc;
 
     use anyhow::Result;
-    use input_leap_platform::MockScreen;
-    use input_leap_server::{run, ServerConfig};
+    use hop_platform::MockScreen;
+    use hop_server::{run, ServerConfig};
     use tokio_util::sync::CancellationToken;
     #[allow(unused_imports, reason = "cfg-gated")]
     use tracing::{debug, info, warn};
 
     pub async fn run_server(cfg: ServerConfig, shutdown: CancellationToken) -> Result<()> {
         #[cfg(target_os = "linux")]
-        match input_leap_platform_ei::EiScreen::try_open() {
+        match hop_platform_ei::EiScreen::try_open() {
             Ok(screen) => {
                 info!("using libei platform backend");
                 return run(cfg, Arc::new(screen), shutdown)
@@ -453,7 +453,7 @@ mod backend {
         }
 
         #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
-        match input_leap_platform_x11::X11Screen::open(None) {
+        match hop_platform_x11::X11Screen::open(None) {
             Ok(screen) => {
                 info!("using X11 platform backend");
                 return run(cfg, Arc::new(screen), shutdown)
@@ -464,7 +464,7 @@ mod backend {
         }
 
         #[cfg(target_os = "macos")]
-        match input_leap_platform_macos::MacOsScreen::try_open() {
+        match hop_platform_macos::MacOsScreen::try_open() {
             Ok(screen) => {
                 info!("using macOS platform backend");
                 return run(cfg, Arc::new(screen), shutdown)
@@ -475,7 +475,7 @@ mod backend {
         }
 
         #[cfg(windows)]
-        match input_leap_platform_windows::WindowsScreen::try_open() {
+        match hop_platform_windows::WindowsScreen::try_open() {
             Ok(screen) => {
                 info!("using Windows platform backend");
                 return run(cfg, Arc::new(screen), shutdown)

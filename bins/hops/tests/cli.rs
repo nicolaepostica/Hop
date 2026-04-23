@@ -1,4 +1,4 @@
-//! CLI smoke tests for `input-leaps`.
+//! CLI smoke tests for `hops`.
 //!
 //! These drive the compiled binary via `assert_cmd`, exercising the
 //! `fingerprint` subcommand in a temp directory so nothing touches the
@@ -9,7 +9,7 @@ use predicates::prelude::*;
 use tempfile::TempDir;
 
 fn bin() -> Command {
-    Command::cargo_bin("input-leaps").expect("binary in CARGO_BIN_EXE_*")
+    Command::cargo_bin("hops").expect("binary in CARGO_BIN_EXE_*")
 }
 
 #[test]
@@ -18,7 +18,7 @@ fn version_flag() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::starts_with("input-leaps ").and(predicate::str::contains(".")));
+        .stdout(predicate::str::starts_with("hops ").and(predicate::str::contains(".")));
 }
 
 #[test]

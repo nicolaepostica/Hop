@@ -14,9 +14,9 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use input_leap_common::{ButtonId, KeyId, ModifierMask};
-use input_leap_platform::PlatformScreen;
-use input_leap_platform_x11::X11Screen;
+use hop_common::{ButtonId, KeyId, ModifierMask};
+use hop_platform::PlatformScreen;
+use hop_platform_x11::X11Screen;
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::ConnectionExt as _;
 

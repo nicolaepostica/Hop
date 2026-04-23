@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use input_leap_platform::PlatformError;
+use hop_platform::PlatformError;
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::ConnectionExt as _;
 

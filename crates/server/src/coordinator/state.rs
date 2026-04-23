@@ -10,9 +10,9 @@
 
 use std::collections::HashMap;
 
-use input_leap_common::{ClipboardFormat, ClipboardId};
-use input_leap_platform::InputEvent;
-use input_leap_protocol::{Capability, Message};
+use hop_common::{ClipboardFormat, ClipboardId};
+use hop_platform::InputEvent;
+use hop_protocol::{Capability, Message};
 
 use crate::coordinator::clipboard::ClipboardGrabState;
 use crate::coordinator::held::HeldState;
@@ -513,7 +513,7 @@ fn to_local(virt: (i32, i32), origin_x: i32, origin_y: i32) -> (i32, i32) {
 mod tests {
     use super::*;
     use crate::coordinator::layout::{LayoutStore, ScreenEntry, ScreenLayout};
-    use input_leap_common::{ButtonId, KeyId, ModifierMask};
+    use hop_common::{ButtonId, KeyId, ModifierMask};
 
     fn three_screen_layout() -> ScreenLayout {
         ScreenLayout {

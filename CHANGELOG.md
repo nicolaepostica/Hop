@@ -27,7 +27,7 @@ and versions follow [Semantic Versioning](https://semver.org/).
   `run` keeps the single-call API for binaries.
 - `client` crate: `run` connects, handshakes, and enters a keep-alive
   `select!` loop with graceful shutdown.
-- `input-leaps` / `input-leapc` binaries gain `clap`-based CLIs with
+- `hops` / `hopc` binaries gain `clap`-based CLIs with
   a `fingerprint {add,list,remove,show}` subcommand for peer management
   and `tracing_subscriber` logging.
 - Tests (all green):

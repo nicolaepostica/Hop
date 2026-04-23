@@ -1,4 +1,4 @@
-//! Input Leap client.
+//! Hop client.
 //!
 //! At M2 the client connects, handshakes, and exchanges keep-alives
 //! with the server. Real event injection lands in M3+.
@@ -7,12 +7,12 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use futures::{SinkExt, StreamExt};
-use input_leap_net::{
+use hop_net::{
     build_client_config, client_handshake, connect, ConnectError, FingerprintDb, HandshakeError,
     KeepAliveTracker, LoadedIdentity, TlsError,
 };
-use input_leap_platform::PlatformScreen;
-use input_leap_protocol::{
+use hop_platform::PlatformScreen;
+use hop_protocol::{
     Capability, DeviceInfoPayload, DisconnectReason, HelloPayload, Message, ProtocolError,
     PROTOCOL_VERSION,
 };
@@ -96,7 +96,7 @@ where
 }
 
 async fn session_loop(
-    framed: &mut input_leap_net::HandshakeStream,
+    framed: &mut hop_net::HandshakeStream,
     shutdown: CancellationToken,
 ) -> Result<(), ClientError> {
     let mut keepalive = KeepAliveTracker::new();

@@ -1,18 +1,18 @@
 [package]
-name        = "input-leap-config"
+name        = "hop-config"
 version     = { workspace = true }
 edition     = { workspace = true }
 rust-version = { workspace = true }
 license     = { workspace = true }
 repository  = { workspace = true }
 authors     = { workspace = true }
-description = "TOML-based configuration loader for Input Leap."
+description = "TOML-based configuration loader for Hop."
 
 [lints]
 workspace = true
 
 [dependencies]
-input-leap-common = { workspace = true }
+hop-common = { workspace = true }
 
 serde       = { workspace = true }
 serde_json  = { workspace = true }

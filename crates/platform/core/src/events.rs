@@ -1,7 +1,7 @@
 //! Events produced by a screen ([`InputEvent`]) and events injected into
 //! it ([`InjectedEvent`]).
 
-use input_leap_common::{ButtonId, KeyId, ModifierMask};
+use hop_common::{ButtonId, KeyId, ModifierMask};
 
 /// An input event observed on the local machine.
 ///

@@ -6,7 +6,7 @@
 mod fixtures;
 
 use bytes::BytesMut;
-use input_leap_protocol::{Message, MessageCodec};
+use hop_protocol::{Message, MessageCodec};
 use proptest::prelude::*;
 use tokio_util::codec::{Decoder, Encoder};
 

@@ -10,12 +10,12 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use futures::{SinkExt, StreamExt};
-use input_leap_net::{
+use hop_net::{
     build_client_config, build_server_config, client_handshake, connect, load_or_generate_cert,
     server_handshake, ConnectedStream, FingerprintDb, HandshakeError, Listener, LoadedIdentity,
     PeerEntry,
 };
-use input_leap_protocol::{Capability, DeviceInfoPayload, HelloPayload, Message, PROTOCOL_VERSION};
+use hop_protocol::{Capability, DeviceInfoPayload, HelloPayload, Message, PROTOCOL_VERSION};
 use tempfile::TempDir;
 
 fn gen_identity() -> (LoadedIdentity, TempDir) {
@@ -52,7 +52,7 @@ async fn dial(
     server_addr: SocketAddr,
     identity: &LoadedIdentity,
     trust_db: Arc<FingerprintDb>,
-) -> Result<ConnectedStream, input_leap_net::ConnectError> {
+) -> Result<ConnectedStream, hop_net::ConnectError> {
     let tls = build_client_config(identity, trust_db).expect("client tls");
     connect(server_addr, Arc::new(tls)).await
 }

@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn store_load_missing_file_falls_back_to_single_primary() {
-        let tmp = std::env::temp_dir().join("input-leap-m11-missing.toml");
+        let tmp = std::env::temp_dir().join("hop-m11-missing.toml");
         let _ = std::fs::remove_file(&tmp);
         let store = LayoutStore::load(tmp, "desk").expect("load falls back");
         let snap = store.snapshot();
@@ -430,7 +430,7 @@ mod tests {
 
     #[test]
     fn store_reload_picks_up_changes() {
-        let tmp = std::env::temp_dir().join("input-leap-m11-reload.toml");
+        let tmp = std::env::temp_dir().join("hop-m11-reload.toml");
         let v1 = r#"
 primary = "desk"
 

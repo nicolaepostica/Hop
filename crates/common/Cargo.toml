@@ -1,12 +1,12 @@
 [package]
-name        = "input-leap-common"
+name        = "hop-common"
 version     = { workspace = true }
 edition     = { workspace = true }
 rust-version = { workspace = true }
 license     = { workspace = true }
 repository  = { workspace = true }
 authors     = { workspace = true }
-description = "Shared types for Input Leap (IDs, clipboard formats, modifier masks)."
+description = "Shared types for Hop (IDs, clipboard formats, modifier masks)."
 
 [lints]
 workspace = true

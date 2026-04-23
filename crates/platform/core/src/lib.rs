@@ -1,6 +1,6 @@
 //! `PlatformScreen` trait plus a reusable `MockScreen` for tests.
 //!
-//! Backend crates (`input-leap-platform-x11`, `-macos`, `-windows`,
+//! Backend crates (`hop-platform-x11`, `-macos`, `-windows`,
 //! `-ei`) each implement [`PlatformScreen`] for their target OS.
 //! Real backends land in M3+; [`MockScreen`] covers M2 so server and
 //! client can be tested end-to-end without a display.

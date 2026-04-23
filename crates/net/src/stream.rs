@@ -2,7 +2,7 @@
 
 use std::net::SocketAddr;
 
-use input_leap_protocol::{framed, MessageCodec};
+use hop_protocol::{framed, MessageCodec};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsStream;
 use tokio_util::codec::Framed;
@@ -48,7 +48,7 @@ impl ConnectedStream {
         self.peer_addr
     }
 
-    /// Wrap the stream in the Input Leap framed codec.
+    /// Wrap the stream in the Hop framed codec.
     #[must_use]
     pub fn into_framed(self) -> Framed<TlsStream<TcpStream>, MessageCodec> {
         framed(self.inner)

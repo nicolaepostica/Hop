@@ -22,7 +22,7 @@
 use std::time::Duration;
 
 use futures::{SinkExt, StreamExt};
-use input_leap_protocol::{
+use hop_protocol::{
     Capability, DeviceInfoPayload, HelloPayload, Message, MessageCodec, ProtocolError,
     PROTOCOL_VERSION,
 };

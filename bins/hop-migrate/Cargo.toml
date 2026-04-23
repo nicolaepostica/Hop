@@ -1,5 +1,5 @@
 [package]
-name        = "input-leap-migrate"
+name        = "hop-migrate"
 version     = { workspace = true }
 edition     = { workspace = true }
 rust-version = { workspace = true }
@@ -13,7 +13,7 @@ publish     = false
 workspace = true
 
 [[bin]]
-name = "input-leap-migrate"
+name = "hop-migrate"
 path = "src/main.rs"
 
 [dependencies]

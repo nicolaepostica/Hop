@@ -188,11 +188,11 @@ fn default_connect() -> SocketAddr {
 }
 
 fn default_server_name() -> String {
-    "input-leap-server".into()
+    "hop-server".into()
 }
 
 fn default_client_name() -> String {
-    "input-leap-client".into()
+    "hop-client".into()
 }
 
 fn default_cert_dir() -> PathBuf {
@@ -262,10 +262,10 @@ where
         // Missing file is fine — the defaults layer covers it.
     }
 
-    // Layer environment variables: INPUT_LEAP_<NAME> (no role segmentation
-    // at M4; we can introduce INPUT_LEAP_SERVER_* / _CLIENT_* later if
+    // Layer environment variables: HOP_<NAME> (no role segmentation
+    // at M4; we can introduce HOP_SERVER_* / _CLIENT_* later if
     // the two binaries need to diverge).
-    fig = fig.merge(Env::prefixed("INPUT_LEAP_").split("__"));
+    fig = fig.merge(Env::prefixed("HOP_").split("__"));
 
     // CLI overrides map into the relevant fields.
     let cli = cli_merge_map::<T>(overrides, kind);
@@ -323,7 +323,7 @@ mod tests {
     fn defaults_produce_sane_server_settings() {
         let s = ServerSettings::default();
         assert_eq!(s.listen_addr.port(), 24800);
-        assert_eq!(s.display_name, "input-leap-server");
+        assert_eq!(s.display_name, "hop-server");
         assert!(s.file_transfer.enabled);
     }
 
@@ -386,12 +386,12 @@ listen_addr = "0.0.0.0:12345"
         // SAFETY: test is single-threaded and cleans the variable up
         // immediately; no concurrent readers racing with us.
         unsafe {
-            std::env::set_var("INPUT_LEAP_DISPLAY_NAME", "from-env");
+            std::env::set_var("HOP_DISPLAY_NAME", "from-env");
         }
         let s = load_server_settings(Some(&path), ConfigOverrides::default()).unwrap();
         // SAFETY: same reasoning as the set_var above.
         unsafe {
-            std::env::remove_var("INPUT_LEAP_DISPLAY_NAME");
+            std::env::remove_var("HOP_DISPLAY_NAME");
         }
         assert_eq!(s.display_name, "from-env");
     }
@@ -401,7 +401,7 @@ listen_addr = "0.0.0.0:12345"
     fn client_settings_have_distinct_defaults() {
         let c = ClientSettings::default();
         assert_eq!(c.server_addr.to_string(), "127.0.0.1:24800");
-        assert_eq!(c.display_name, "input-leap-client");
+        assert_eq!(c.display_name, "hop-client");
     }
 
     #[test]
@@ -409,7 +409,7 @@ listen_addr = "0.0.0.0:12345"
     fn layout_path_roundtrips_through_toml() {
         let s = ServerSettings {
             layout: LayoutSettings {
-                path: Some("/etc/input-leap/layout.toml".into()),
+                path: Some("/etc/hop/layout.toml".into()),
             },
             ..Default::default()
         };

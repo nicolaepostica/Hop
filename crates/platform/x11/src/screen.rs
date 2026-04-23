@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use futures::stream;
-use input_leap_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
-use input_leap_platform::{EventStream, PlatformError, PlatformScreen, ScreenInfo};
+use hop_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
+use hop_platform::{EventStream, PlatformError, PlatformScreen, ScreenInfo};
 use tracing::{debug, warn};
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::protocol::xproto::Window;
@@ -30,7 +30,7 @@ const BUTTON_WHEEL_DOWN: u8 = 5;
 const BUTTON_WHEEL_LEFT: u8 = 6;
 const BUTTON_WHEEL_RIGHT: u8 = 7;
 
-/// Scroll delta per protocol "tick". Input Leap sends integer deltas
+/// Scroll delta per protocol "tick". Hop sends integer deltas
 /// in 120ths (same convention as Windows `WHEEL_DELTA`); anything
 /// non-zero translates to at least one button press.
 const WHEEL_TICK: i32 = 120;
@@ -156,7 +156,7 @@ impl PlatformScreen for X11Screen {
     }
 
     async fn inject_mouse_wheel(&self, dx: i32, dy: i32) -> Result<(), PlatformError> {
-        // Convert Input Leap's signed-int wheel deltas into the
+        // Convert Hop's signed-int wheel deltas into the
         // press/release of the appropriate wheel button. Each 120-unit
         // tick is one button click; sub-tick deltas are dropped rather
         // than accumulated, because the platform layer has no state.

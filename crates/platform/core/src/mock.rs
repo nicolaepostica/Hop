@@ -1,14 +1,14 @@
 //! In-memory [`PlatformScreen`] implementation for tests.
 //!
 //! `MockScreen` records every injection call and replays a scripted
-//! event stream. Tests use it to drive `input-leap-server` and
-//! `input-leap-client` without a real display.
+//! event stream. Tests use it to drive `hop-server` and
+//! `hop-client` without a real display.
 
 use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
 use futures::stream;
-use input_leap_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
+use hop_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
 
 use crate::error::PlatformError;
 use crate::events::{InjectedEvent, InputEvent};

@@ -6,11 +6,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
-use input_leap_client::{run as run_client, ClientConfig};
-use input_leap_net::{load_or_generate_cert, FingerprintDb, PeerEntry};
-use input_leap_platform::MockScreen;
-use input_leap_server::coordinator::{LayoutStore, ScreenLayout};
-use input_leap_server::{Server, ServerConfig};
+use hop_client::{run as run_client, ClientConfig};
+use hop_net::{load_or_generate_cert, FingerprintDb, PeerEntry};
+use hop_platform::MockScreen;
+use hop_server::coordinator::{LayoutStore, ScreenLayout};
+use hop_server::{Server, ServerConfig};
 use tempfile::TempDir;
 use tokio::time::{sleep, timeout};
 use tokio_util::sync::CancellationToken;

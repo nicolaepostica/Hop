@@ -1,4 +1,4 @@
-//! Shared types for Input Leap.
+//! Shared types for Hop.
 //!
 //! This crate holds primitive ID and enum types referenced by the protocol,
 //! platform, and application layers. It has no async runtime dependencies

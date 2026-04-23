@@ -1,7 +1,7 @@
 //! Wire-level message types and their payloads.
 
 use bytes::Bytes;
-use input_leap_common::{
+use hop_common::{
     ButtonId, ClipboardFormat, ClipboardId, FileManifest, KeyId, ModifierMask,
     TransferCancelReason, TransferId,
 };
