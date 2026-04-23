@@ -4,6 +4,8 @@
 //! exchanges keep-alives. Screen routing, clipboard, and real platform
 //! I/O land in M3+.
 
+pub mod coordinator;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 

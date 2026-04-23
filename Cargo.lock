@@ -1164,10 +1164,12 @@ dependencies = [
  "input-leap-net",
  "input-leap-platform",
  "input-leap-protocol",
+ "serde",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-util",
+ "toml",
  "tracing",
  "tracing-subscriber",
 ]

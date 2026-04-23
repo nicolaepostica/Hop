@@ -21,6 +21,8 @@ tokio     = { workspace = true, features = ["rt", "macros", "sync", "time", "sig
 tokio-util = { workspace = true, features = ["rt"] }
 arc-swap  = { workspace = true }
 futures   = { workspace = true }
+serde     = { workspace = true }
+toml      = { workspace = true }
 tracing   = { workspace = true }
 thiserror = { workspace = true }
 
