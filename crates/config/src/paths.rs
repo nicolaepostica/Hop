@@ -21,6 +21,14 @@ pub fn default_config_path() -> Option<PathBuf> {
     project_dirs().map(|d| d.config_dir().join("config.toml"))
 }
 
+/// Default path for `layout.toml`. Lives next to `config.toml` so the
+/// GUI can atomically rewrite it (tempfile + rename) without disturbing
+/// the admin-authored `config.toml`.
+#[must_use]
+pub fn default_layout_path() -> Option<PathBuf> {
+    project_dirs().map(|d| d.config_dir().join("layout.toml"))
+}
+
 /// Default drop directory for received files
 /// (`<user-download>/InputLeap`). Falls back to the temp dir if the
 /// user doesn't have a recognisable Downloads folder.

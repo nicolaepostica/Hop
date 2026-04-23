@@ -121,6 +121,7 @@ fn resolve_settings(common: &CommonArgs, client: &ClientArgs) -> Result<ClientSe
         display_name: client.name.clone(),
         cert_dir: common.cert_dir.clone(),
         fingerprint_db: common.fingerprint_db.clone(),
+        layout_path: None,
     };
     load_client_settings(path.as_deref(), overrides).context("load client settings")
 }

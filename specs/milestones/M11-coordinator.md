@@ -463,15 +463,15 @@ CancellationToken (SIGINT)
 
 4. ✅ **`coordinator/state.rs`** (commit `63c0b0b`) — `Coordinator`, `CoordinatorEvent`, `CoordinatorOutput`. Pure state-machine. 11 unit-тестов (crossing, drag-block, orphan, active-disconnect, clipboard broadcast/request/stale).
 
-5. ⬜ **`coordinator/proxy.rs`** — `ClientProxy` с outbound mpsc + keep-alive + inbound forward. Integration test: mock клиент, отправить ClipboardGrab, проверить что Coordinator получил PeerMessage.
+5. ✅ **`coordinator/proxy.rs`** — `ClientProxy` с outbound mpsc + keep-alive + inbound forward. 5 интеграционных тестов на `tokio::io::duplex` (PeerMessage forwarding, outbound writes, keep-alive filter, peer-disconnect, coordinator-drop).
 
-6. ⬜ **`coordinator/task.rs`** — tokio task, склеивающий всё через channels. `try_send` backpressure policy.
+6. ✅ **`coordinator/task.rs`** — tokio driver task + platform dispatcher. `try_send` backpressure drop-on-full. 3 unit-теста (crossing emits ScreenEnter, backpressure tolerance, InjectLocal reaches dispatcher).
 
-7. ⬜ **`Server::serve`** — wire-up: accept-loop шлёт `ClientConnected` в Coordinator inbound, handshake-outcome'ы идут туда же. `PlatformScreen::event_stream()` форвардится отдельным таском как `LocalInput`.
+7. ✅ **`Server::serve`** — переписан в `crates/server/src/lib.rs`: `spawn_coordinator` + input-stream forwarder + per-peer `ClientProxy`. `ServerConfig` получил обязательное поле `layout: SharedLayout`; binary (`bins/input-leaps/src/main.rs`) пока подставляет `ScreenLayout::single_primary(display_name)` до появления loader'а `layout.toml`.
 
-8. ⬜ **E2E test:** layout с 3 именованными экранами. Два mock-клиента подключаются как "laptop" и "monitor". Сервер симулирует локальный InputEvent::MouseMove который пересекает все три экрана справа. Ассертим что каждый клиент получил правильную последовательность ScreenEnter / MouseMove / ScreenLeave.
+8. ✅ **E2E test:** `crates/server/tests/coordinator_e2e.rs` — 3-screen layout, два mock-клиента, MouseMove через desk → monitor → laptop. Ассертим что monitor получает ScreenEnter + MouseMove + ScreenLeave, laptop получает ScreenEnter без ScreenLeave.
 
-**Текущий статус:** шаги 1–4 готовы (41 unit-тест, clippy clean). Шаги 5–8 (proxy + task + Server wire-up + E2E) — шаг C, запланирован в отдельной сессии.
+**Текущий статус:** все 8 шагов готовы. 49 server-тестов + 1 handshake E2E + 1 coordinator E2E, clippy clean.
 
 ## Тестовый план
 

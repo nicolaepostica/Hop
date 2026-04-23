@@ -16,8 +16,10 @@
 pub mod paths;
 mod settings;
 
-pub use self::paths::{default_config_path, default_drop_directory, expand_user_path};
+pub use self::paths::{
+    default_config_path, default_drop_directory, default_layout_path, expand_user_path,
+};
 pub use self::settings::{
     load_client_settings, load_server_settings, ClientSettings, ConfigError, ConfigOverrides,
-    FileTransferSettings, ServerSettings, TlsSettings,
+    FileTransferSettings, LayoutSettings, ServerSettings, TlsSettings,
 };

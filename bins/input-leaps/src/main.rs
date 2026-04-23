@@ -8,13 +8,15 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::{Parser, Subcommand};
 use input_leap_config::{
-    default_config_path, load_server_settings, ConfigOverrides, ServerSettings,
+    default_config_path, default_layout_path, load_server_settings, ConfigOverrides,
+    ServerSettings,
 };
 use async_trait::async_trait;
 use input_leap_ipc::{
     default_socket_path, protocol::IpcError, IpcHandler, IpcServer, StatusReply,
 };
 use input_leap_net::{load_or_generate_cert, Fingerprint, FingerprintDb, PeerEntry};
+use input_leap_server::coordinator::LayoutStore;
 use input_leap_server::ServerConfig;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -90,6 +92,9 @@ struct ServerArgs {
     /// Display name advertised to peers. Overrides the file/env setting.
     #[arg(long)]
     name: Option<String>,
+    /// Path to the screen layout file. Overrides the file/env setting.
+    #[arg(long)]
+    layout: Option<PathBuf>,
     /// Path to the IPC socket for the GUI to connect to.
     ///
     /// Defaults to `<runtime>/input-leap/daemon.sock`. Pass a path or
@@ -163,6 +168,7 @@ fn resolve_settings(common: &CommonArgs, server: &ServerArgs) -> Result<ServerSe
         display_name: server.name.clone(),
         cert_dir: common.cert_dir.clone(),
         fingerprint_db: common.fingerprint_db.clone(),
+        layout_path: server.layout.clone(),
     };
     load_server_settings(path.as_deref(), overrides).context("load server settings")
 }
@@ -206,12 +212,26 @@ async fn run_server(common: CommonArgs, server: ServerArgs) -> Result<()> {
         );
     }
 
+    // Load the screen layout from disk. A missing file is not fatal —
+    // `LayoutStore::load` falls back to a single-primary layout with a
+    // warning so the server still starts on first run.
+    let layout_path = settings
+        .layout
+        .path
+        .clone()
+        .or_else(default_layout_path)
+        .unwrap_or_else(|| PathBuf::from("layout.toml"));
+    info!(path = %layout_path.display(), "loading screen layout");
+    let layout_store = LayoutStore::load(layout_path, &settings.display_name)
+        .context("load screen layout")?;
+    let layout = layout_store.handle();
     let cfg = ServerConfig {
         listen_addr: settings.listen_addr,
         display_name: settings.display_name,
         identity,
         trusted_peers: Arc::new(trusted),
         capabilities: Vec::new(),
+        layout,
     };
 
     let shutdown = CancellationToken::new();
@@ -347,6 +367,7 @@ fn run_fingerprint(args: FingerprintArgs) -> Result<()> {
         &ServerArgs {
             listen: None,
             name: None,
+            layout: None,
             ipc_socket: None,
             no_ipc: true,
             service: false,

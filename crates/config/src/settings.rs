@@ -47,6 +47,9 @@ pub struct ServerSettings {
     /// File-transfer behaviour (used by M9).
     #[serde(default)]
     pub file_transfer: FileTransferSettings,
+    /// Screen-layout file (used by M11).
+    #[serde(default)]
+    pub layout: LayoutSettings,
 }
 
 impl Default for ServerSettings {
@@ -56,6 +59,7 @@ impl Default for ServerSettings {
             display_name: default_server_name(),
             tls: TlsSettings::default(),
             file_transfer: FileTransferSettings::default(),
+            layout: LayoutSettings::default(),
         }
     }
 }
@@ -108,6 +112,20 @@ impl Default for TlsSettings {
     }
 }
 
+/// Where the screen-layout file lives on disk.
+///
+/// `path` is optional: `None` means "use
+/// [`crate::paths::default_layout_path`] when the loader runs". The
+/// loader tolerates a missing file — it starts with a single-primary
+/// layout and logs a warning.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct LayoutSettings {
+    /// Explicit path to `layout.toml`. `None` → use the default
+    /// `<project_config_dir>/layout.toml`.
+    #[serde(default)]
+    pub path: Option<PathBuf>,
+}
+
 /// File-clipboard / drop-directory settings (M9).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FileTransferSettings {
@@ -154,6 +172,9 @@ pub struct ConfigOverrides {
     /// Override `tls.fingerprint_db`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fingerprint_db: Option<PathBuf>,
+    /// Override `layout.path` (server only; ignored for client settings).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layout_path: Option<PathBuf>,
 }
 
 // Defaults -----------------------------------------------------------------
@@ -281,6 +302,13 @@ fn cli_merge_map<T>(overrides: &ConfigOverrides, kind: &str) -> serde_json::Valu
     if !tls.is_empty() {
         map.insert("tls".into(), serde_json::Value::Object(tls));
     }
+    if kind == "server" {
+        if let Some(path) = &overrides.layout_path {
+            let mut layout = serde_json::Map::new();
+            layout.insert("path".into(), serde_json::json!(path));
+            map.insert("layout".into(), serde_json::Value::Object(layout));
+        }
+    }
     serde_json::Value::Object(map)
 }
 
@@ -374,6 +402,45 @@ listen_addr = "0.0.0.0:12345"
         let c = ClientSettings::default();
         assert_eq!(c.server_addr.to_string(), "127.0.0.1:24800");
         assert_eq!(c.display_name, "input-leap-client");
+    }
+
+    #[test]
+    #[serial(env)]
+    fn layout_path_roundtrips_through_toml() {
+        let s = ServerSettings {
+            layout: LayoutSettings {
+                path: Some("/etc/input-leap/layout.toml".into()),
+            },
+            ..Default::default()
+        };
+        let text = toml::to_string_pretty(&s).unwrap();
+        let back: ServerSettings = toml::from_str(&text).unwrap();
+        assert_eq!(s, back);
+    }
+
+    #[test]
+    #[serial(env)]
+    fn cli_layout_override_wins_over_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("config.toml");
+        std::fs::write(
+            &path,
+            r#"
+[layout]
+path = "/from-file/layout.toml"
+"#,
+        )
+        .unwrap();
+
+        let ov = ConfigOverrides {
+            layout_path: Some("/from-cli/layout.toml".into()),
+            ..Default::default()
+        };
+        let s = load_server_settings(Some(&path), ov).unwrap();
+        assert_eq!(
+            s.layout.path.as_deref().and_then(Path::to_str),
+            Some("/from-cli/layout.toml"),
+        );
     }
 
     #[test]
