@@ -1,10 +1,19 @@
 //! Application-level handshake that runs on top of the established TLS
 //! connection.
 //!
-//! Both peers send their `Hello` and `DeviceInfo` unsolicited, then
-//! read the other side's pair. This keeps the flow symmetric — no
-//! "server-only" state — and avoids round-trip delays that a
-//! request/response variant would add.
+//! The flow is symmetric — no "server-only" state — but sequenced so
+//! that a peer speaking a protocol version we cannot understand is
+//! rejected before we reveal anything beyond our own `Hello`:
+//!
+//!   1. Send our `Hello`.
+//!   2. Read and verify the peer's `Hello` (protocol version match).
+//!   3. Send our `DeviceInfo`.
+//!   4. Read the peer's `DeviceInfo`.
+//!
+//! An earlier draft fired steps 1 and 3 back-to-back to save one RTT;
+//! that leaked the local screen geometry to peers we were about to
+//! reject. The extra round-trip (still well under 10 ms on a LAN) is
+//! worth the tighter information boundary.
 //!
 //! Any deviation — wrong version, wrong message type, silence past the
 //! per-step timeout — aborts the handshake and leaves the caller to
@@ -110,7 +119,23 @@ pub async fn run_handshake(
     our_hello: HelloPayload,
     our_device_info: DeviceInfoPayload,
 ) -> Result<HandshakeOutcome, HandshakeError> {
+    // Step 1: announce ourselves.
     send_with_timeout(stream, Message::Hello(our_hello), HandshakeStep::SendHello).await?;
+
+    // Step 2: verify the peer's Hello *before* sending anything else.
+    // This is the version gate — if the peer speaks a protocol we
+    // cannot understand, we drop the connection having revealed only
+    // the Hello we already sent (same information leaked by any TCP
+    // probe). Nothing about the local screen goes out until the peer
+    // has passed this check.
+    let peer_hello = recv_hello(stream).await?;
+    debug!(
+        peer_name = %peer_hello.display_name,
+        peer_version = peer_hello.protocol_version,
+        "received peer Hello"
+    );
+
+    // Step 3: version matched — now it is safe to send DeviceInfo.
     send_with_timeout(
         stream,
         Message::DeviceInfo(our_device_info),
@@ -118,12 +143,7 @@ pub async fn run_handshake(
     )
     .await?;
 
-    let peer_hello = recv_hello(stream).await?;
-    debug!(
-        peer_name = %peer_hello.display_name,
-        peer_version = peer_hello.protocol_version,
-        "received peer Hello"
-    );
+    // Step 4: collect the peer's matching DeviceInfo.
     let peer_device_info = recv_device_info(stream).await?;
 
     Ok(HandshakeOutcome {
