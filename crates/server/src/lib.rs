@@ -19,6 +19,7 @@ use input_leap_protocol::{
 };
 use thiserror::Error;
 use tokio::select;
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
@@ -55,6 +56,10 @@ pub enum ServerError {
 }
 
 /// Everything the server needs to run.
+///
+/// Cheap to share across tasks — [`Server`] wraps this in an [`Arc`]
+/// internally so every accepted connection only pays a pointer-bump
+/// instead of cloning the cert chain + private key material.
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
     /// Address to bind the TCP listener to (`0.0.0.0:port`).
@@ -75,7 +80,7 @@ pub struct ServerConfig {
 /// can learn the OS-assigned port before entering the accept loop.
 pub struct Server {
     listener: Listener,
-    cfg: ServerConfig,
+    cfg: Arc<ServerConfig>,
 }
 
 impl Server {
@@ -89,7 +94,10 @@ impl Server {
                 addr: cfg.listen_addr,
                 source,
             })?;
-        Ok(Self { listener, cfg })
+        Ok(Self {
+            listener,
+            cfg: Arc::new(cfg),
+        })
     }
 
     /// Address the listener is actually bound to.
@@ -99,6 +107,11 @@ impl Server {
     }
 
     /// Run the accept loop until the shutdown token fires.
+    ///
+    /// Client connections are spawned into a [`JoinSet`] so finished
+    /// tasks are reaped as they complete (bounded memory even under a
+    /// churny workload) and panics surface via `tracing::warn!` instead
+    /// of being silently swallowed by a detached `tokio::spawn`.
     pub async fn serve<S>(
         self,
         screen: Arc<S>,
@@ -113,7 +126,7 @@ impl Server {
             "server listening"
         );
 
-        let mut client_tasks = Vec::new();
+        let mut clients: JoinSet<()> = JoinSet::new();
 
         loop {
             select! {
@@ -122,22 +135,20 @@ impl Server {
                         Ok(stream) => {
                             let peer_addr = stream.peer_addr();
                             let peer_fp = *stream.peer_fingerprint();
-                            info!(peer = %peer_addr, fingerprint = %peer_fp, "client connected");
-                            let cfg = self.cfg.clone();
+                            debug!(peer = %peer_addr, fingerprint = %peer_fp, "client connected");
+                            let cfg = Arc::clone(&self.cfg);
                             let screen = Arc::clone(&screen);
-                            let shutdown = shutdown.clone();
-                            let task = tokio::spawn(async move {
-                                if let Err(err) = handle_client(&cfg, screen, stream, shutdown).await {
-                                    warn!(
+                            let task_shutdown = shutdown.clone();
+                            clients.spawn(async move {
+                                match handle_client(cfg, screen, stream, task_shutdown).await {
+                                    Ok(()) => debug!(peer = %peer_addr, "client session ended"),
+                                    Err(err) => warn!(
                                         peer = %peer_addr,
                                         error = %err,
                                         "client session ended with error"
-                                    );
-                                } else {
-                                    info!(peer = %peer_addr, "client session ended");
+                                    ),
                                 }
                             });
-                            client_tasks.push(task);
                         }
                         Err(AcceptError::HandshakeTimeout | AcceptError::Tls(_)
                             | AcceptError::MissingPeerCert) => {
@@ -148,6 +159,19 @@ impl Server {
                         }
                     }
                 }
+
+                // Reap finished client tasks as they complete. Without
+                // this arm the JoinSet would hold onto every handle
+                // until shutdown, leaking memory for long-running
+                // servers with frequent reconnects.
+                Some(result) = clients.join_next() => {
+                    if let Err(err) = result {
+                        if err.is_panic() {
+                            warn!(error = %err, "client task panicked");
+                        }
+                    }
+                }
+
                 () = shutdown.cancelled() => {
                     info!("server shutdown requested");
                     break;
@@ -155,8 +179,14 @@ impl Server {
             }
         }
 
-        for task in client_tasks {
-            let _ = task.await;
+        // Drain in-flight clients so their Disconnect frames go out
+        // before we tear down the runtime.
+        while let Some(result) = clients.join_next().await {
+            if let Err(err) = result {
+                if err.is_panic() {
+                    warn!(error = %err, "client task panicked during drain");
+                }
+            }
         }
         Ok(())
     }
@@ -175,7 +205,7 @@ where
 }
 
 async fn handle_client<S>(
-    cfg: &ServerConfig,
+    cfg: Arc<ServerConfig>,
     screen: Arc<S>,
     stream: ConnectedStream,
     shutdown: CancellationToken,
@@ -205,7 +235,7 @@ where
             peer: peer_addr,
             source,
         })?;
-    info!(
+    debug!(
         peer = %peer_addr,
         peer_name = %outcome.peer_name,
         "handshake complete"
