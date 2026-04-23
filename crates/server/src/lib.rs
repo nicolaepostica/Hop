@@ -1,29 +1,38 @@
 //! Input Leap server.
 //!
-//! At M2 the server accepts peers, performs the handshake, and
-//! exchanges keep-alives. Screen routing, clipboard, and real platform
-//! I/O land in M3+.
+//! M11 wires the [`Coordinator`](coordinator::Coordinator) state
+//! machine into the accept loop: each connected peer owns a
+//! [`ClientProxy`](coordinator::ClientProxy) that forwards peer
+//! messages into the coordinator and drains its outbound channel back
+//! out to the wire. A single coordinator task owns the routing tables;
+//! local input observed on the primary's `PlatformScreen::event_stream`
+//! is pumped into the same coordinator.
 
 pub mod coordinator;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use futures::{SinkExt, StreamExt};
+use futures::StreamExt;
 use input_leap_net::{
     build_server_config, server_handshake, AcceptError, ConnectedStream, FingerprintDb,
-    HandshakeError, HandshakeStream, KeepAliveTracker, Listener, LoadedIdentity, TlsError,
+    HandshakeError, Listener, LoadedIdentity, TlsError,
 };
 use input_leap_platform::PlatformScreen;
 use input_leap_protocol::{
-    Capability, DeviceInfoPayload, DisconnectReason, HelloPayload, Message, ProtocolError,
-    PROTOCOL_VERSION,
+    Capability, DeviceInfoPayload, HelloPayload, Message, ProtocolError, PROTOCOL_VERSION,
 };
 use thiserror::Error;
 use tokio::select;
+use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
+
+use crate::coordinator::task::OUTBOUND_CHANNEL_CAPACITY;
+use crate::coordinator::{
+    spawn_coordinator, ClientProxy, CoordinatorEvent, CoordinatorHandle, SharedLayout,
+};
 
 /// Errors the server can produce.
 #[derive(Debug, Error)]
@@ -66,7 +75,8 @@ pub enum ServerError {
 pub struct ServerConfig {
     /// Address to bind the TCP listener to (`0.0.0.0:port`).
     pub listen_addr: SocketAddr,
-    /// Name advertised in the `Hello` handshake.
+    /// Name advertised in the `Hello` handshake. Must match the entry
+    /// for the primary screen in [`Self::layout`] for input to route.
     pub display_name: String,
     /// Local TLS identity (cert chain + private key).
     pub identity: LoadedIdentity,
@@ -74,6 +84,8 @@ pub struct ServerConfig {
     pub trusted_peers: Arc<FingerprintDb>,
     /// Capabilities advertised to peers.
     pub capabilities: Vec<Capability>,
+    /// Screen layout the coordinator routes input over.
+    pub layout: SharedLayout,
 }
 
 /// A bound-but-not-yet-serving Input Leap server.
@@ -110,10 +122,16 @@ impl Server {
 
     /// Run the accept loop until the shutdown token fires.
     ///
-    /// Client connections are spawned into a [`JoinSet`] so finished
-    /// tasks are reaped as they complete (bounded memory even under a
-    /// churny workload) and panics surface via `tracing::warn!` instead
-    /// of being silently swallowed by a detached `tokio::spawn`.
+    /// Spawns, for the lifetime of this call:
+    ///   1. the coordinator task (state machine + routing table);
+    ///   2. the platform dispatcher (consumes `InjectLocal` outputs);
+    ///   3. a local-input forwarder pumping `screen.event_stream()`
+    ///      into the coordinator;
+    ///   4. one [`ClientProxy`] per accepted peer, joined in a
+    ///      [`JoinSet`] so panics surface via `tracing::warn!`.
+    ///
+    /// Shutdown fans out via the shared [`CancellationToken`]: every
+    /// task's `select!` watches it and exits on its own.
     pub async fn serve<S>(
         self,
         screen: Arc<S>,
@@ -128,8 +146,19 @@ impl Server {
             "server listening"
         );
 
-        let mut clients: JoinSet<()> = JoinSet::new();
+        // 1. Coordinator + platform dispatcher.
+        let (handle, coord_task, dispatcher_task) = spawn_coordinator(
+            Arc::clone(&self.cfg.layout),
+            self.cfg.display_name.clone(),
+            Arc::clone(&screen),
+            &shutdown,
+        );
 
+        // 2. Local-input forwarder.
+        let input_task = spawn_input_forwarder(&screen, handle.clone(), shutdown.clone());
+
+        // 3. Accept loop.
+        let mut proxies: JoinSet<()> = JoinSet::new();
         loop {
             select! {
                 accept = self.listener.accept() => {
@@ -140,9 +169,10 @@ impl Server {
                             debug!(peer = %peer_addr, fingerprint = %peer_fp, "client connected");
                             let cfg = Arc::clone(&self.cfg);
                             let screen = Arc::clone(&screen);
+                            let handle = handle.clone();
                             let task_shutdown = shutdown.clone();
-                            clients.spawn(async move {
-                                match handle_client(cfg, screen, stream, task_shutdown).await {
+                            proxies.spawn(async move {
+                                match accept_and_proxy(cfg, screen, stream, handle, task_shutdown).await {
                                     Ok(()) => debug!(peer = %peer_addr, "client session ended"),
                                     Err(err) => warn!(
                                         peer = %peer_addr,
@@ -162,11 +192,7 @@ impl Server {
                     }
                 }
 
-                // Reap finished client tasks as they complete. Without
-                // this arm the JoinSet would hold onto every handle
-                // until shutdown, leaking memory for long-running
-                // servers with frequent reconnects.
-                Some(result) = clients.join_next() => {
+                Some(result) = proxies.join_next() => {
                     if let Err(err) = result {
                         if err.is_panic() {
                             warn!(error = %err, "client task panicked");
@@ -181,15 +207,21 @@ impl Server {
             }
         }
 
-        // Drain in-flight clients so their Disconnect frames go out
+        // Drain in-flight proxies so their Disconnect frames go out
         // before we tear down the runtime.
-        while let Some(result) = clients.join_next().await {
+        while let Some(result) = proxies.join_next().await {
             if let Err(err) = result {
                 if err.is_panic() {
                     warn!(error = %err, "client task panicked during drain");
                 }
             }
         }
+
+        // Wait for the coordinator halo to wind down. They all watch
+        // the shared shutdown token so the awaits complete promptly.
+        let _ = input_task.await;
+        let _ = coord_task.await;
+        let _ = dispatcher_task.await;
         Ok(())
     }
 }
@@ -206,10 +238,13 @@ where
     Server::bind(cfg).await?.serve(screen, shutdown).await
 }
 
-async fn handle_client<S>(
+/// Run a peer handshake, register the client with the coordinator, and
+/// drive its [`ClientProxy`] until the session ends.
+async fn accept_and_proxy<S>(
     cfg: Arc<ServerConfig>,
     screen: Arc<S>,
     stream: ConnectedStream,
+    handle: CoordinatorHandle,
     shutdown: CancellationToken,
 ) -> Result<(), ServerError>
 where
@@ -243,55 +278,70 @@ where
         "handshake complete"
     );
 
-    session_loop(&mut framed, shutdown).await
+    let (outbound_tx, outbound_rx) = mpsc::channel::<Message>(OUTBOUND_CHANNEL_CAPACITY);
+    if handle
+        .register_client(
+            outcome.peer_name.clone(),
+            outbound_tx,
+            outcome.peer_capabilities.clone(),
+        )
+        .await
+        .is_err()
+    {
+        // Coordinator task gone — shutdown in progress.
+        return Ok(());
+    }
+
+    let proxy = ClientProxy::new(
+        outcome.peer_name,
+        framed,
+        outbound_rx,
+        handle.commands_tx.clone(),
+        shutdown,
+    );
+    if let Err(err) = proxy.run().await {
+        warn!(peer = %peer_addr, error = %err, "proxy terminated with error");
+    }
+    Ok(())
 }
 
-async fn session_loop(
-    framed: &mut HandshakeStream,
+/// Background task: pump [`InputEvent`](input_leap_platform::InputEvent)s
+/// from the local platform into the coordinator.
+///
+/// Exits on shutdown, when the event stream ends, or when the
+/// coordinator's command channel closes.
+fn spawn_input_forwarder<S>(
+    screen: &Arc<S>,
+    handle: CoordinatorHandle,
     shutdown: CancellationToken,
-) -> Result<(), ServerError> {
-    let mut keepalive = KeepAliveTracker::new();
-
-    loop {
-        select! {
-            biased;
-
-            () = shutdown.cancelled() => {
-                let _ = framed
-                    .send(Message::Disconnect {
-                        reason: DisconnectReason::UserInitiated,
-                    })
-                    .await;
-                return Ok(());
-            }
-
-            incoming = framed.next() => {
-                match incoming {
-                    Some(Ok(msg)) => {
-                        keepalive.mark_seen();
-                        if matches!(msg, Message::Disconnect { .. }) {
-                            debug!(?msg, "peer sent Disconnect");
-                            return Ok(());
-                        }
-                        debug!(?msg, "message from peer");
+) -> tokio::task::JoinHandle<()>
+where
+    S: PlatformScreen,
+{
+    let mut stream = screen.event_stream();
+    tokio::spawn(async move {
+        loop {
+            select! {
+                biased;
+                () = shutdown.cancelled() => {
+                    stream.shutdown();
+                    break;
+                }
+                event = stream.next() => {
+                    let Some(event) = event else {
+                        debug!("local input stream ended");
+                        break;
+                    };
+                    if handle
+                        .send_event(CoordinatorEvent::LocalInput(event))
+                        .await
+                        .is_err()
+                    {
+                        debug!("coordinator command channel closed");
+                        break;
                     }
-                    Some(Err(err)) => return Err(err.into()),
-                    None => return Ok(()),
                 }
-            }
-
-            _ = keepalive.tick() => {
-                if keepalive.is_timed_out() {
-                    warn!("peer keepalive timeout");
-                    let _ = framed
-                        .send(Message::Disconnect {
-                            reason: DisconnectReason::KeepAliveTimeout,
-                        })
-                        .await;
-                    return Ok(());
-                }
-                framed.send(Message::KeepAlive).await?;
             }
         }
-    }
+    })
 }

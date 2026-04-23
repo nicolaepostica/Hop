@@ -10,11 +10,15 @@
 pub mod clipboard;
 pub mod held;
 pub mod layout;
+pub mod proxy;
 pub mod state;
+pub mod task;
 
 pub use self::clipboard::{ClipboardGrabState, GrabRecord};
 pub use self::held::HeldState;
 pub use self::layout::{
     LayoutError, LayoutStore, ScreenEntry, ScreenLayout, ScreenName, SharedLayout,
 };
+pub use self::proxy::{ClientProxy, ProxyError, ProxyStream};
 pub use self::state::{ClientInfo, Coordinator, CoordinatorEvent, CoordinatorOutput};
+pub use self::task::{spawn_coordinator, CoordinatorCommand, CoordinatorHandle};

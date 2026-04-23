@@ -9,6 +9,7 @@ use chrono::Utc;
 use input_leap_client::{run as run_client, ClientConfig};
 use input_leap_net::{load_or_generate_cert, FingerprintDb, PeerEntry};
 use input_leap_platform::MockScreen;
+use input_leap_server::coordinator::{LayoutStore, ScreenLayout};
 use input_leap_server::{Server, ServerConfig};
 use tempfile::TempDir;
 use tokio::time::{sleep, timeout};
@@ -36,12 +37,14 @@ async fn server_and_client_handshake_and_keepalive() {
     });
 
     // 2. Bind the server first so we know the port before the client runs.
+    let layout = LayoutStore::from_layout(ScreenLayout::single_primary("server")).handle();
     let server_cfg = ServerConfig {
         listen_addr: "127.0.0.1:0".parse().unwrap(),
         display_name: "server".into(),
         identity: server_id,
         trusted_peers: Arc::new(server_db),
         capabilities: Vec::new(),
+        layout,
     };
     let server = Server::bind(server_cfg).await.expect("bind server");
     let server_addr = server.local_addr();
