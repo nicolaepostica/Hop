@@ -113,6 +113,7 @@ mod tests {
     fn encode_decode_single_message() {
         let mut codec = LineJsonCodec::new();
         let req = IpcMessage::Request(IpcRequest {
+            jsonrpc: crate::protocol::JsonRpcVersion,
             id: 1,
             payload: RequestPayload::GetStatus,
         });
@@ -130,6 +131,7 @@ mod tests {
         codec
             .encode(
                 IpcMessage::Request(IpcRequest {
+                    jsonrpc: crate::protocol::JsonRpcVersion,
                     id: 1,
                     payload: RequestPayload::GetStatus,
                 }),
@@ -139,6 +141,7 @@ mod tests {
         codec
             .encode(
                 IpcMessage::Request(IpcRequest {
+                    jsonrpc: crate::protocol::JsonRpcVersion,
                     id: 2,
                     payload: RequestPayload::RemovePeer {
                         name: "laptop".into(),

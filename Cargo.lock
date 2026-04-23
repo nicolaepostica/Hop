@@ -1009,6 +1009,7 @@ dependencies = [
 name = "input-leap-ipc"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "bytes",
  "futures",
  "interprocess",
@@ -1213,6 +1214,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
+ "async-trait",
  "chrono",
  "clap",
  "input-leap-config",

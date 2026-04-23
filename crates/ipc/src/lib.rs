@@ -27,6 +27,4 @@ pub use self::codec::{LineJsonCodec, LineJsonError};
 pub use self::protocol::{
     ErrorPayload, IpcError, IpcMessage, IpcRequest, IpcResponse, RequestId, StatusReply,
 };
-pub use self::server::{
-    default_socket_path, IpcHandler, IpcServer, IpcServerError, MutateFuture, StatusFuture,
-};
+pub use self::server::{default_socket_path, IpcHandler, IpcServer, IpcServerError};

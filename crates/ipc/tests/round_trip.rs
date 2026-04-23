@@ -7,9 +7,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use input_leap_ipc::{
-    protocol::IpcError, IpcClient, IpcClientError, IpcHandler, IpcServer, MutateFuture,
-    StatusFuture, StatusReply,
+    protocol::IpcError, IpcClient, IpcClientError, IpcHandler, IpcServer, StatusReply,
 };
 use tempfile::TempDir;
 use tokio::sync::Mutex;
@@ -21,43 +21,42 @@ struct StubHandler {
     status_label: Mutex<String>,
 }
 
+#[async_trait]
 impl IpcHandler for StubHandler {
-    fn status(&self) -> StatusFuture<'_> {
-        Box::pin(async move {
-            let label = self.status_label.lock().await.clone();
-            let peers = self.peers.lock().await.len();
-            StatusReply {
-                listen_addr: "127.0.0.1:24800".into(),
-                display_name: label,
-                local_fingerprint: "sha256:stub".into(),
-                trusted_peer_count: peers,
-            }
-        })
+    async fn status(&self) -> StatusReply {
+        let label = self.status_label.lock().await.clone();
+        let peers = self.peers.lock().await.len();
+        StatusReply {
+            listen_addr: "127.0.0.1:24800".into(),
+            display_name: label,
+            local_fingerprint: "sha256:stub".into(),
+            trusted_peer_count: peers,
+        }
     }
 
-    fn add_peer(&self, name: String, fingerprint: String) -> MutateFuture<'_> {
-        Box::pin(async move {
-            if !fingerprint.starts_with("sha256:") {
-                return Err((
-                    IpcError::InvalidArgument,
-                    format!("bad fingerprint: {fingerprint}"),
-                ));
-            }
-            let mut peers = self.peers.lock().await;
-            let existed = peers.iter().any(|(n, _)| n == &name);
-            peers.retain(|(n, _)| n != &name);
-            peers.push((name, fingerprint));
-            Ok(!existed)
-        })
+    async fn add_peer(
+        &self,
+        name: String,
+        fingerprint: String,
+    ) -> Result<bool, (IpcError, String)> {
+        if !fingerprint.starts_with("sha256:") {
+            return Err((
+                IpcError::InvalidArgument,
+                format!("bad fingerprint: {fingerprint}"),
+            ));
+        }
+        let mut peers = self.peers.lock().await;
+        let existed = peers.iter().any(|(n, _)| n == &name);
+        peers.retain(|(n, _)| n != &name);
+        peers.push((name, fingerprint));
+        Ok(!existed)
     }
 
-    fn remove_peer(&self, name: String) -> MutateFuture<'_> {
-        Box::pin(async move {
-            let mut peers = self.peers.lock().await;
-            let before = peers.len();
-            peers.retain(|(n, _)| n != &name);
-            Ok(peers.len() != before)
-        })
+    async fn remove_peer(&self, name: String) -> Result<bool, (IpcError, String)> {
+        let mut peers = self.peers.lock().await;
+        let before = peers.len();
+        peers.retain(|(n, _)| n != &name);
+        Ok(peers.len() != before)
     }
 }
 

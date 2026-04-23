@@ -23,6 +23,7 @@ input-leap-platform = { workspace = true }
 input-leap-server   = { workspace = true }
 
 anyhow             = { workspace = true }
+async-trait        = { workspace = true }
 chrono             = { workspace = true }
 clap               = { workspace = true }
 tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }

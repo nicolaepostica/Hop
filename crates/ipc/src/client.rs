@@ -12,8 +12,8 @@ use tokio_util::codec::Framed;
 
 use crate::codec::{LineJsonCodec, LineJsonError};
 use crate::protocol::{
-    ErrorPayload, IpcMessage, IpcRequest, RequestPayload, ResponseOutcome, ResultPayload,
-    StatusReply,
+    ErrorPayload, IpcMessage, IpcRequest, JsonRpcVersion, RequestPayload, ResponseOutcome,
+    ResultPayload, StatusReply,
 };
 
 /// Handle for issuing requests against a running daemon.
@@ -63,7 +63,11 @@ impl IpcClient {
 
     async fn call(&mut self, payload: RequestPayload) -> Result<ResultPayload, IpcClientError> {
         let id = self.next_id();
-        let req = IpcRequest { id, payload };
+        let req = IpcRequest {
+            jsonrpc: JsonRpcVersion,
+            id,
+            payload,
+        };
         self.framed.send(IpcMessage::Request(req)).await?;
         loop {
             let msg = self.framed.next().await.ok_or(IpcClientError::Closed)??;

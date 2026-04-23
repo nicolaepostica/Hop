@@ -10,9 +10,9 @@ use clap::{Parser, Subcommand};
 use input_leap_config::{
     default_config_path, load_server_settings, ConfigOverrides, ServerSettings,
 };
+use async_trait::async_trait;
 use input_leap_ipc::{
-    default_socket_path, protocol::IpcError, IpcHandler, IpcServer, MutateFuture, StatusFuture,
-    StatusReply,
+    default_socket_path, protocol::IpcError, IpcHandler, IpcServer, StatusReply,
 };
 use input_leap_net::{load_or_generate_cert, Fingerprint, FingerprintDb, PeerEntry};
 use input_leap_server::ServerConfig;
@@ -290,53 +290,52 @@ impl DaemonIpcState {
     }
 }
 
+#[async_trait]
 impl IpcHandler for DaemonIpcState {
-    fn status(&self) -> StatusFuture<'_> {
-        Box::pin(async move {
-            let count = self.edits.lock().await.len();
-            StatusReply {
-                listen_addr: self.listen_addr.clone(),
-                display_name: self.display_name.clone(),
-                local_fingerprint: self.local_fingerprint.clone(),
-                trusted_peer_count: count,
-            }
-        })
+    async fn status(&self) -> StatusReply {
+        let count = self.edits.lock().await.len();
+        StatusReply {
+            listen_addr: self.listen_addr.clone(),
+            display_name: self.display_name.clone(),
+            local_fingerprint: self.local_fingerprint.clone(),
+            trusted_peer_count: count,
+        }
     }
 
-    fn add_peer(&self, name: String, fingerprint: String) -> MutateFuture<'_> {
-        Box::pin(async move {
-            let parsed: Fingerprint = fingerprint
-                .parse()
-                .map_err(|err| (IpcError::InvalidArgument, format!("bad fingerprint: {err}")))?;
-            let mut db = self.edits.lock().await;
-            let was_new = db.lookup(&parsed).is_none();
-            db.add(PeerEntry {
-                name,
-                fingerprint: parsed,
-                added: Utc::now(),
-            });
-            db.save(&self.fingerprint_db_path).map_err(|err| {
-                (
-                    IpcError::HandlerFailed,
-                    format!("failed to persist DB: {err}"),
-                )
-            })?;
-            Ok(was_new)
-        })
+    async fn add_peer(
+        &self,
+        name: String,
+        fingerprint: String,
+    ) -> Result<bool, (IpcError, String)> {
+        let parsed: Fingerprint = fingerprint
+            .parse()
+            .map_err(|err| (IpcError::InvalidArgument, format!("bad fingerprint: {err}")))?;
+        let mut db = self.edits.lock().await;
+        let was_new = db.lookup(&parsed).is_none();
+        db.add(PeerEntry {
+            name,
+            fingerprint: parsed,
+            added: Utc::now(),
+        });
+        db.save(&self.fingerprint_db_path).map_err(|err| {
+            (
+                IpcError::HandlerFailed,
+                format!("failed to persist DB: {err}"),
+            )
+        })?;
+        Ok(was_new)
     }
 
-    fn remove_peer(&self, name: String) -> MutateFuture<'_> {
-        Box::pin(async move {
-            let mut db = self.edits.lock().await;
-            let removed = db.remove(&name);
-            db.save(&self.fingerprint_db_path).map_err(|err| {
-                (
-                    IpcError::HandlerFailed,
-                    format!("failed to persist DB: {err}"),
-                )
-            })?;
-            Ok(removed)
-        })
+    async fn remove_peer(&self, name: String) -> Result<bool, (IpcError, String)> {
+        let mut db = self.edits.lock().await;
+        let removed = db.remove(&name);
+        db.save(&self.fingerprint_db_path).map_err(|err| {
+            (
+                IpcError::HandlerFailed,
+                format!("failed to persist DB: {err}"),
+            )
+        })?;
+        Ok(removed)
     }
 }
 

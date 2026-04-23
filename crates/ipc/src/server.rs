@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use futures::{SinkExt, StreamExt};
 use interprocess::local_socket::tokio::{Listener, Stream};
 use interprocess::local_socket::traits::tokio::Listener as _;
@@ -16,8 +17,8 @@ use tracing::{debug, info, warn};
 
 use crate::codec::{LineJsonCodec, LineJsonError};
 use crate::protocol::{
-    ErrorPayload, IpcError, IpcMessage, IpcRequest, IpcResponse, RequestPayload, ResponseOutcome,
-    ResultPayload, StatusReply,
+    ErrorPayload, IpcError, IpcMessage, IpcRequest, IpcResponse, JsonRpcVersion, RequestPayload,
+    ResponseOutcome, ResultPayload, StatusReply,
 };
 
 /// Default location for the daemon socket.
@@ -53,30 +54,26 @@ pub enum IpcServerError {
     Accept(#[source] std::io::Error),
 }
 
-/// Future returned by status queries.
-pub type StatusFuture<'a> =
-    std::pin::Pin<Box<dyn std::future::Future<Output = StatusReply> + Send + 'a>>;
-
-/// Future returned by mutating handler calls (add/remove peer).
-pub type MutateFuture<'a> = std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<bool, (IpcError, String)>> + Send + 'a>,
->;
-
 /// User-supplied callback that implements the actual daemon actions.
 ///
-/// Boxed so the server has one concrete type to hold; the trait only
-/// has three methods so implementations are cheap to write.
+/// Implementations write plain `async fn` — the `#[async_trait]` macro
+/// takes care of the boxing that `dyn IpcHandler` requires at runtime.
+#[async_trait]
 pub trait IpcHandler: Send + Sync + 'static {
     /// Return the current daemon state.
-    fn status(&self) -> StatusFuture<'_>;
+    async fn status(&self) -> StatusReply;
 
     /// Add a peer fingerprint. Returns `Ok(true)` if the DB gained a
     /// new entry, `Ok(false)` if it replaced an existing one. Returns
     /// an [`IpcError`] + human message on failure.
-    fn add_peer(&self, name: String, fingerprint: String) -> MutateFuture<'_>;
+    async fn add_peer(
+        &self,
+        name: String,
+        fingerprint: String,
+    ) -> Result<bool, (IpcError, String)>;
 
     /// Remove a peer by name. Returns `true` when an entry was found.
-    fn remove_peer(&self, name: String) -> MutateFuture<'_>;
+    async fn remove_peer(&self, name: String) -> Result<bool, (IpcError, String)>;
 }
 
 /// Listens on a local socket, dispatches requests to an `IpcHandler`.
@@ -236,6 +233,7 @@ where
                 Err((code, message)) => ResponseOutcome::Error(ErrorPayload {
                     code: code.code(),
                     message,
+                    data: None,
                 }),
             }
         }
@@ -244,8 +242,13 @@ where
             Err((code, message)) => ResponseOutcome::Error(ErrorPayload {
                 code: code.code(),
                 message,
+                data: None,
             }),
         },
     };
-    IpcResponse { id, outcome }
+    IpcResponse {
+        jsonrpc: JsonRpcVersion,
+        id,
+        outcome,
+    }
 }
