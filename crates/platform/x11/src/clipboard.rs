@@ -51,8 +51,8 @@ use tracing::{debug, warn};
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{
     Atom, AtomEnum, ClientMessageEvent, ConnectionExt as _, CreateWindowAux, EventMask, PropMode,
-    Property, SelectionNotifyEvent, SelectionRequestEvent, Window, WindowClass,
-    CLIENT_MESSAGE_EVENT, SELECTION_NOTIFY_EVENT,
+    SelectionNotifyEvent, SelectionRequestEvent, Window, WindowClass, CLIENT_MESSAGE_EVENT,
+    SELECTION_NOTIFY_EVENT,
 };
 use x11rb::protocol::Event;
 use x11rb::rust_connection::RustConnection;
@@ -547,7 +547,3 @@ fn wake_reader(conn: &RustConnection, window: Window, wakeup_atom: Atom) {
     let _ = conn.flush();
 }
 
-// Re-export for the screen module to avoid an unused-import warning
-// while this module's types live here.
-#[allow(dead_code, reason = "exposed via X11Screen in a follow-up patch")]
-pub(crate) fn _unused_force_compile(_: Property) {}

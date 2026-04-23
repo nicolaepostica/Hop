@@ -216,7 +216,11 @@ async fn build_manifest(root: &Path) -> Result<(FileManifest, Vec<PathBuf>), Tra
                 };
                 children.push((child_abs, child_rel));
             }
-            // Deterministic order — walk files before dirs, alphabetically.
+            // Deterministic order: alphabetical by relative path. (The
+            // receiver pre-creates every directory entry up front in
+            // `TransferReceiver::start`, so mixing files and
+            // directories in a single sort order doesn't affect
+            // correctness — the receiver's parent dir always exists.)
             children.sort_by(|a, b| a.1.cmp(&b.1));
             for child in children.into_iter().rev() {
                 stack.push(child);

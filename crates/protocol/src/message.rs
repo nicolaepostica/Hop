@@ -212,6 +212,17 @@ pub struct DeviceInfoPayload {
 /// does not understand a capability name sent by a newer peer still
 /// parses the surrounding [`HelloPayload`] successfully and simply
 /// ignores the unrecognized entry.
+///
+/// # Equality hazard
+///
+/// `Unknown` is a unit variant (serde's `#[serde(other)]` only accepts
+/// unit variants), so two distinct unknown capability names from the
+/// wire both round-trip to `Unknown` and compare equal under
+/// [`PartialEq`]. This is fine for the "is this capability supported"
+/// check callers do — `vec.contains(&Capability::UnicodeClipboard)` is
+/// never `true` just because `Unknown` is in the list — but callers
+/// must not use `Unknown` as a key or rely on equality to tell unknown
+/// capabilities apart.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Capability {
