@@ -10,9 +10,11 @@
 pub mod clipboard;
 pub mod held;
 pub mod layout;
+pub mod state;
 
 pub use self::clipboard::{ClipboardGrabState, GrabRecord};
 pub use self::held::HeldState;
 pub use self::layout::{
     LayoutError, LayoutStore, ScreenEntry, ScreenLayout, ScreenName, SharedLayout,
 };
+pub use self::state::{ClientInfo, Coordinator, CoordinatorEvent, CoordinatorOutput};

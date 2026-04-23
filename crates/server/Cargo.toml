@@ -20,6 +20,7 @@ input-leap-platform = { workspace = true }
 tokio     = { workspace = true, features = ["rt", "macros", "sync", "time", "signal"] }
 tokio-util = { workspace = true, features = ["rt"] }
 arc-swap  = { workspace = true }
+bytes     = { workspace = true }
 futures   = { workspace = true }
 serde     = { workspace = true }
 toml      = { workspace = true }
