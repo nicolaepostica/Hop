@@ -64,9 +64,10 @@ async fn run_transfer(
             Message::FileChunk {
                 transfer_id: _,
                 entry_index,
+                offset,
                 data,
             } => {
-                receiver.on_chunk(entry_index, &data).await?;
+                receiver.on_chunk(entry_index, offset, &data).await?;
             }
             Message::FileTransferEnd { .. } => break,
             Message::FileTransferCancel { reason, .. } => {
@@ -151,7 +152,7 @@ async fn cancel_drops_staging_directory() {
     let mut rx = TransferReceiver::start(99, manifest, staging.path())
         .await
         .unwrap();
-    rx.on_chunk(0, &[1, 2, 3]).await.unwrap();
+    rx.on_chunk(0, 0, &[1, 2, 3]).await.unwrap();
     let staging_sub = staging.path().join("transfer-99");
     assert!(staging_sub.exists());
 
@@ -177,8 +178,8 @@ async fn size_overflow_is_caught() {
     let mut rx = TransferReceiver::start(11, manifest, staging.path())
         .await
         .unwrap();
-    rx.on_chunk(0, &[1, 2, 3]).await.unwrap();
-    let err = rx.on_chunk(0, &[4]).await.unwrap_err();
+    rx.on_chunk(0, 0, &[1, 2, 3]).await.unwrap();
+    let err = rx.on_chunk(0, 3, &[4]).await.unwrap_err();
     assert!(matches!(err, TransferError::SizeOverflow { .. }));
     rx.cancel(TransferCancelReason::PeerError);
 }
@@ -198,7 +199,7 @@ async fn incomplete_transfer_fails_to_finalise() {
     let mut rx = TransferReceiver::start(5, manifest, staging.path())
         .await
         .unwrap();
-    rx.on_chunk(0, &[0; 4]).await.unwrap();
+    rx.on_chunk(0, 0, &[0; 4]).await.unwrap();
     match rx.finish(drop.path()).await {
         Err(TransferError::Incomplete {
             missing,
@@ -268,11 +269,100 @@ async fn chunk_is_a_noop_for_directory_entries() {
         .await
         .unwrap();
     // Chunk targeting the directory entry (index 0) must error.
-    let err = rx.on_chunk(0, &[0]).await.unwrap_err();
+    let err = rx.on_chunk(0, 0, &[0]).await.unwrap_err();
     assert!(matches!(err, TransferError::UnexpectedChunk { .. }));
     // A chunk targeting the file (index 1) is fine.
-    rx.on_chunk(1, &[7]).await.unwrap();
+    rx.on_chunk(1, 0, &[7]).await.unwrap();
     rx.cancel(TransferCancelReason::UserCancelled);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn offset_mismatch_is_rejected() {
+    let staging = TempDir::new().unwrap();
+    let manifest = FileManifest {
+        entries: vec![FileManifestEntry {
+            rel_path: PathBuf::from("doc.bin"),
+            size: 8,
+            is_dir: false,
+        }],
+        total_bytes: 8,
+    };
+    let mut rx = TransferReceiver::start(21, manifest, staging.path())
+        .await
+        .unwrap();
+    rx.on_chunk(0, 0, &[1, 2, 3]).await.unwrap();
+    // Sender skips ahead past where we actually are (bytes_per_entry[0] == 3).
+    let err = rx.on_chunk(0, 5, &[4, 5, 6]).await.unwrap_err();
+    assert!(
+        matches!(err, TransferError::OffsetMismatch { expected: 3, got: 5, .. }),
+        "got {err:?}"
+    );
+    rx.cancel(TransferCancelReason::PeerError);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn out_of_order_entry_is_rejected() {
+    let staging = TempDir::new().unwrap();
+    let manifest = FileManifest {
+        entries: vec![
+            FileManifestEntry {
+                rel_path: PathBuf::from("first.bin"),
+                size: 2,
+                is_dir: false,
+            },
+            FileManifestEntry {
+                rel_path: PathBuf::from("second.bin"),
+                size: 2,
+                is_dir: false,
+            },
+        ],
+        total_bytes: 4,
+    };
+    let mut rx = TransferReceiver::start(22, manifest, staging.path())
+        .await
+        .unwrap();
+
+    // Complete the first entry so the sender is allowed to advance.
+    rx.on_chunk(0, 0, &[1, 2]).await.unwrap();
+    rx.on_chunk(1, 0, &[3, 4]).await.unwrap();
+    // Returning to entry 0 is a protocol violation.
+    let err = rx.on_chunk(0, 2, &[5]).await.unwrap_err();
+    assert!(
+        matches!(err, TransferError::OutOfOrderChunk { entry_index: 0, last_seen: 1 }),
+        "got {err:?}"
+    );
+    rx.cancel(TransferCancelReason::PeerError);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn advancing_before_previous_entry_completes_is_rejected() {
+    let staging = TempDir::new().unwrap();
+    let manifest = FileManifest {
+        entries: vec![
+            FileManifestEntry {
+                rel_path: PathBuf::from("a.bin"),
+                size: 4,
+                is_dir: false,
+            },
+            FileManifestEntry {
+                rel_path: PathBuf::from("b.bin"),
+                size: 2,
+                is_dir: false,
+            },
+        ],
+        total_bytes: 6,
+    };
+    let mut rx = TransferReceiver::start(23, manifest, staging.path())
+        .await
+        .unwrap();
+    // Only half of entry 0 arrives, then sender jumps to entry 1.
+    rx.on_chunk(0, 0, &[1, 2]).await.unwrap();
+    let err = rx.on_chunk(1, 0, &[9, 9]).await.unwrap_err();
+    assert!(
+        matches!(err, TransferError::OutOfOrderChunk { entry_index: 1, last_seen: 0 }),
+        "got {err:?}"
+    );
+    rx.cancel(TransferCancelReason::PeerError);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -293,7 +383,7 @@ async fn dropping_bytes_forces_cleanup() {
         .await
         .unwrap();
     let chunk = Bytes::from_static(b"abc");
-    rx.on_chunk(0, &chunk).await.unwrap();
+    rx.on_chunk(0, 0, &chunk).await.unwrap();
     drop(chunk);
     rx.cancel(TransferCancelReason::UserCancelled);
 }

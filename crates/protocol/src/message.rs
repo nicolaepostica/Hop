@@ -138,12 +138,21 @@ pub enum Message {
     },
 
     /// One chunk of one file within an active transfer.
+    ///
+    /// `offset` is the byte position within `entries[entry_index]`
+    /// where `data` starts. The receiver rejects any chunk whose
+    /// `offset` does not equal the bytes it has already written for
+    /// that entry — this catches duplicate deliveries, out-of-order
+    /// streams, and leaves room to resume after a reconnect by letting
+    /// the sender jump directly to the first unreceived byte.
     FileChunk {
         /// Transfer this chunk belongs to.
         transfer_id: TransferId,
         /// Index into the manifest's `entries` that this chunk targets.
         entry_index: u32,
-        /// Raw bytes appended to the file at `entries[entry_index]`.
+        /// Byte offset within the target entry where `data` begins.
+        offset: u64,
+        /// Raw bytes to write at `offset` in `entries[entry_index]`.
         data: Bytes,
     },
 

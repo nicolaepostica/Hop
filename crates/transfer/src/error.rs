@@ -35,6 +35,32 @@ pub enum TransferError {
         total: u32,
     },
 
+    /// A chunk returned to an earlier entry, or advanced past one
+    /// whose bytes had not all arrived yet. Entries must be streamed
+    /// strictly in manifest order.
+    #[error(
+        "out-of-order chunk for entry {entry_index}; most recent entry was {last_seen}"
+    )]
+    OutOfOrderChunk {
+        /// Index the sender supplied with the offending chunk.
+        entry_index: u32,
+        /// Index of the last entry we accepted a chunk for.
+        last_seen: u32,
+    },
+
+    /// Chunk offset did not line up with what we had already written
+    /// for that entry. Catches duplicate deliveries and out-of-order
+    /// streams; future resume logic uses the same field to rejoin.
+    #[error("offset mismatch for entry {entry_index}: expected {expected}, got {got}")]
+    OffsetMismatch {
+        /// Which entry.
+        entry_index: u32,
+        /// Offset we were ready to accept (= bytes already written).
+        expected: u64,
+        /// Offset the sender actually supplied.
+        got: u64,
+    },
+
     /// A chunk would push a file past its manifest-declared size.
     #[error("chunk for entry {entry_index} overflows manifest size by {overflow} bytes")]
     SizeOverflow {

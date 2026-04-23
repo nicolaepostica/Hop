@@ -205,10 +205,11 @@ pub fn arb_message() -> BoxedStrategy<Message> {
                 },
             )
             .boxed(),
-        (any::<u64>(), any::<u32>(), arb_bytes())
-            .prop_map(|(transfer_id, entry_index, data)| Message::FileChunk {
+        (any::<u64>(), any::<u32>(), any::<u64>(), arb_bytes())
+            .prop_map(|(transfer_id, entry_index, offset, data)| Message::FileChunk {
                 transfer_id,
                 entry_index,
+                offset,
                 data,
             })
             .boxed(),
@@ -342,6 +343,7 @@ pub fn canonical_messages() -> Vec<(&'static str, Message)> {
             Message::FileChunk {
                 transfer_id: 1,
                 entry_index: 0,
+                offset: 0,
                 data: Bytes::from_static(b"hello world!"),
             },
         ),

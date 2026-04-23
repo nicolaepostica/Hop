@@ -116,11 +116,15 @@ impl TransferSender {
                 break;
             }
             let chunk = Bytes::copy_from_slice(&buf[..n]);
+            // `offset` is the absolute position of the first byte in
+            // `chunk` within the entry, so the receiver can validate
+            // that chunks arrive contiguously and in order.
             send(
                 tx,
                 Message::FileChunk {
                     transfer_id: self.transfer_id,
                     entry_index,
+                    offset: bytes_read,
                     data: chunk,
                 },
             )

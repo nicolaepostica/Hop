@@ -41,6 +41,10 @@ pub struct TransferReceiver {
     absolute_paths: Vec<PathBuf>,
     bytes_per_entry: Vec<u64>,
     current_file: Option<(u32, tokio::fs::File)>,
+    /// Most-recent `entry_index` we accepted a chunk for. Used to
+    /// enforce strict monotonic ordering across entries — the sender
+    /// is required to finish each file before advancing to the next.
+    last_entry: Option<u32>,
     /// When `Some`, the staging dir is cleaned up on Drop. Cleared by
     /// [`finish`](Self::finish) on a successful finalise.
     cleanup: Option<PathBuf>,
@@ -105,12 +109,31 @@ impl TransferReceiver {
             absolute_paths,
             bytes_per_entry,
             current_file: None,
+            last_entry: None,
             cleanup: Some(staging),
         })
     }
 
-    /// Absorb one chunk. Opens the target file lazily on first chunk.
-    pub async fn on_chunk(&mut self, entry_index: u32, data: &[u8]) -> Result<(), TransferError> {
+    /// Absorb one chunk. Opens the target file lazily on the first
+    /// chunk for that entry.
+    ///
+    /// The receiver enforces two invariants:
+    ///
+    /// - **Strict entry ordering.** `entry_index` must never decrease,
+    ///   and may only advance once the previous non-directory entry
+    ///   has received every byte the manifest promised. A sender that
+    ///   interleaves files or skips ahead is rejected with
+    ///   [`TransferError::OutOfOrderChunk`].
+    /// - **Contiguous offsets.** `offset` must equal the number of
+    ///   bytes already written for that entry. Any mismatch —
+    ///   duplicate chunk, gap, reordering — surfaces as
+    ///   [`TransferError::OffsetMismatch`].
+    pub async fn on_chunk(
+        &mut self,
+        entry_index: u32,
+        offset: u64,
+        data: &[u8],
+    ) -> Result<(), TransferError> {
         let total = u32::try_from(self.manifest.entries.len()).unwrap_or(u32::MAX);
         let idx = entry_index as usize;
         let entry = self
@@ -122,8 +145,49 @@ impl TransferReceiver {
             return Err(TransferError::UnexpectedChunk { entry_index, total });
         }
 
-        let expected = entry.size;
+        // Strict monotonic entry ordering.
+        if let Some(last) = self.last_entry {
+            if entry_index < last {
+                return Err(TransferError::OutOfOrderChunk {
+                    entry_index,
+                    last_seen: last,
+                });
+            }
+            if entry_index > last {
+                // Sender advanced to a new entry — the previous one
+                // must have been completed byte-for-byte, and we need
+                // to flush/close its open handle before opening the
+                // next.
+                let prev = last as usize;
+                let prev_entry = &self.manifest.entries[prev];
+                if !prev_entry.is_dir && self.bytes_per_entry[prev] != prev_entry.size {
+                    return Err(TransferError::OutOfOrderChunk {
+                        entry_index,
+                        last_seen: last,
+                    });
+                }
+                if let Some((_, mut old)) = self.current_file.take() {
+                    old.flush()
+                        .await
+                        .map_err(|source| TransferError::Io {
+                            path: self.absolute_paths[prev].clone(),
+                            source,
+                        })?;
+                }
+            }
+        }
+
+        // Contiguous offset within the entry.
         let written = self.bytes_per_entry[idx];
+        if offset != written {
+            return Err(TransferError::OffsetMismatch {
+                entry_index,
+                expected: written,
+                got: offset,
+            });
+        }
+
+        let expected = entry.size;
         let incoming = data.len() as u64;
         if written + incoming > expected {
             return Err(TransferError::SizeOverflow {
@@ -132,21 +196,9 @@ impl TransferReceiver {
             });
         }
 
-        let open = match self.current_file.take() {
-            Some((open_index, file)) if open_index == entry_index => Some(file),
-            Some((open_index, _old)) => {
-                // Moving on to a new file: the old one drops here,
-                // closing its handle. Chunks for a previous entry
-                // would be a protocol violation caught above, so this
-                // arm only fires on a legitimate advance.
-                let _ = open_index;
-                None
-            }
-            None => None,
-        };
-        let mut file = match open {
-            Some(f) => f,
-            None => {
+        let mut file = match self.current_file.take() {
+            Some((open_index, f)) if open_index == entry_index => f,
+            _ => {
                 let path = &self.absolute_paths[idx];
                 tokio::fs::File::create(path)
                     .await
@@ -164,6 +216,7 @@ impl TransferReceiver {
             })?;
         self.bytes_per_entry[idx] = written + incoming;
         self.current_file = Some((entry_index, file));
+        self.last_entry = Some(entry_index);
         Ok(())
     }
 
