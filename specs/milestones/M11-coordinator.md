@@ -455,25 +455,23 @@ CancellationToken (SIGINT)
 
 ## Порядок имплементации
 
-1. **`coordinator/layout.rs`** — `ScreenLayout`, `ScreenEntry`, `screen_at()`, `clamp_to(screen)`. Property-test на "курсор всегда в каком-то экране ИЛИ в clamp-зоне текущего".
+1. ✅ **`coordinator/layout.rs`** (commit `54d7f6b`) — `ScreenLayout`, `ScreenEntry`, `screen_at()`, `clamp()`, `LayoutStore` c `ArcSwap` + live reload. 11 unit-тестов.
 
-2. **`coordinator/held.rs`** — `HeldState::{apply, leave_messages, enter_messages, any_button_held}`. Unit-тесты на: зажать Shift → leave → enter → Shift должен быть восстановлен; зажать A → leave → A должно уйти через KeyUp но не восстановиться.
+2. ✅ **`coordinator/held.rs`** (commit `54d7f6b`) — `HeldState::{apply, leave_messages, enter_messages, any_button_held}`. 10 unit-тестов (Shift replay, drag block, modifier fixed-order).
 
-3. **`coordinator/clipboard.rs`** — `ClipboardGrabState`. Unit-тесты на: stale-seq ignore, корректный owner transfer, clear-on-disconnect.
+3. ✅ **`coordinator/clipboard.rs`** (commit `54d7f6b`) — `ClipboardGrabState` с seq-based stale-detection. 6 unit-тестов.
 
-4. **`coordinator/mod.rs`** — `Coordinator`, `CoordinatorEvent`, `CoordinatorOutput`. Чистая машина. Unit-тесты:
-   - Мышь проходит границу → leave-messages + ScreenLeave + ScreenEnter + enter-messages в правильном порядке.
-   - Зажатая кнопка блокирует crossing.
-   - Client connects / disconnects / active fails over to primary.
-   - Clipboard Grab broadcast + Request forwarding.
+4. ✅ **`coordinator/state.rs`** (commit `63c0b0b`) — `Coordinator`, `CoordinatorEvent`, `CoordinatorOutput`. Pure state-machine. 11 unit-тестов (crossing, drag-block, orphan, active-disconnect, clipboard broadcast/request/stale).
 
-5. **`proxy.rs`** — `ClientProxy` с outbound mpsc + keep-alive + inbound forward. Integration test: mock клиент, отправить ClipboardGrab, проверить что Coordinator получил PeerMessage.
+5. ⬜ **`coordinator/proxy.rs`** — `ClientProxy` с outbound mpsc + keep-alive + inbound forward. Integration test: mock клиент, отправить ClipboardGrab, проверить что Coordinator получил PeerMessage.
 
-6. **`coordinator/task.rs`** — tokio task, склеивающий всё через channels. `try_send` backpressure policy.
+6. ⬜ **`coordinator/task.rs`** — tokio task, склеивающий всё через channels. `try_send` backpressure policy.
 
-7. **`Server::serve`** — wire-up: accept-loop шлёт `ClientConnected` в Coordinator inbound, handshake-outcome'ы идут туда же. PlatformScreen::event_stream() форвардится отдельным таском как `LocalInput`.
+7. ⬜ **`Server::serve`** — wire-up: accept-loop шлёт `ClientConnected` в Coordinator inbound, handshake-outcome'ы идут туда же. `PlatformScreen::event_stream()` форвардится отдельным таском как `LocalInput`.
 
-8. **E2E test:** layout с 3 именованными экранами. Два mock-клиента подключаются как "laptop" и "monitor". Сервер симулирует локальный InputEvent::MouseMove который пересекает все три экрана справа. Ассертим что каждый клиент получил правильную последовательность ScreenEnter / MouseMove / ScreenLeave.
+8. ⬜ **E2E test:** layout с 3 именованными экранами. Два mock-клиента подключаются как "laptop" и "monitor". Сервер симулирует локальный InputEvent::MouseMove который пересекает все три экрана справа. Ассертим что каждый клиент получил правильную последовательность ScreenEnter / MouseMove / ScreenLeave.
+
+**Текущий статус:** шаги 1–4 готовы (41 unit-тест, clippy clean). Шаги 5–8 (proxy + task + Server wire-up + E2E) — шаг C, запланирован в отдельной сессии.
 
 ## Тестовый план
 
