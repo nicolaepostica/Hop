@@ -12,39 +12,60 @@
 
 //! X11 selection-based clipboard worker.
 //!
-//! Runs on a dedicated OS thread with its own `RustConnection` so the
-//! injection path in [`X11Screen`] is never blocked by a selection
-//! round-trip. Communicates via a `std::sync::mpsc` channel; replies go
-//! back over `tokio::sync::oneshot` so async callers can `.await` them.
+//! Architecture:
+//!
+//! - A dedicated **worker thread** owns a [`RustConnection`] and all
+//!   mutable state (owned-selection store, pending reads). Both the
+//!   [`X11Screen`](crate::X11Screen) injection path and other apps
+//!   reach the worker through channels, never directly — the X
+//!   connection is single-threaded.
+//! - A second **X reader thread** sits in a blocking
+//!   [`Connection::wait_for_event`] loop and forwards every event
+//!   through a `crossbeam_channel`. This eliminates the polling
+//!   `recv_timeout(50 ms)` + `sleep(10 ms)` busy-waits that the first
+//!   implementation used; the worker now sleeps in
+//!   `crossbeam_channel::select!` until there is either a command
+//!   from an async caller or an X event to service.
+//! - Clipboard **reads** are decoupled from the `read()` call. The
+//!   worker sends `ConvertSelection`, pushes a [`PendingRead`] into a
+//!   FIFO, and returns to the event loop. When the matching
+//!   `SelectionNotify` arrives it pops the front, fetches the
+//!   property, and fulfils the [`tokio::sync::oneshot`]. Timeouts are
+//!   enforced on the async side via [`tokio::time::timeout`].
 //!
 //! Covers the `CLIPBOARD` selection only for M4. Supports two formats:
 //! plain UTF-8 text (`UTF8_STRING` target) and HTML (`text/html`).
 //! `PRIMARY` selection and bitmap payloads are follow-ups.
 
-use std::collections::HashMap;
-use std::sync::mpsc;
+use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 use std::thread::{Builder, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bytes::Bytes;
+use crossbeam_channel::{select, unbounded, Receiver, Sender};
 use input_leap_common::{ClipboardFormat, ClipboardId};
 use input_leap_platform::PlatformError;
 use tokio::sync::oneshot;
 use tracing::{debug, warn};
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{
-    Atom, AtomEnum, ConnectionExt as _, CreateWindowAux, EventMask, PropMode, Property,
-    SelectionNotifyEvent, SelectionRequestEvent, Window, WindowClass, SELECTION_NOTIFY_EVENT,
+    Atom, AtomEnum, ClientMessageEvent, ConnectionExt as _, CreateWindowAux, EventMask, PropMode,
+    Property, SelectionNotifyEvent, SelectionRequestEvent, Window, WindowClass,
+    CLIENT_MESSAGE_EVENT, SELECTION_NOTIFY_EVENT,
 };
 use x11rb::protocol::Event;
 use x11rb::rust_connection::RustConnection;
 use x11rb::wrapper::ConnectionExt as _;
 use x11rb::{COPY_DEPTH_FROM_PARENT, COPY_FROM_PARENT, CURRENT_TIME};
 
-/// How long we wait for a `SelectionNotify` when reading the clipboard.
-const READ_TIMEOUT: Duration = Duration::from_secs(2);
+/// How long an async caller waits for a clipboard read before giving up.
+///
+/// Enforced on the tokio side via `tokio::time::timeout`. The worker
+/// itself has no timeout — it simply tracks pending reads in a FIFO.
+pub const READ_TIMEOUT: Duration = Duration::from_secs(2);
 
-/// Commands sent to the worker thread.
+/// Commands sent to the worker thread from async callers.
 enum Cmd {
     Read {
         id: ClipboardId,
@@ -62,8 +83,8 @@ enum Cmd {
 
 /// Async handle to the clipboard worker.
 pub struct X11Clipboard {
-    tx: mpsc::Sender<Cmd>,
-    join: Option<JoinHandle<()>>,
+    tx: Sender<Cmd>,
+    worker: Option<JoinHandle<()>>,
 }
 
 impl std::fmt::Debug for X11Clipboard {
@@ -73,12 +94,13 @@ impl std::fmt::Debug for X11Clipboard {
 }
 
 impl X11Clipboard {
-    /// Spawn a worker thread bound to `display` (or `$DISPLAY` if
-    /// `None`). The thread exits when this handle is dropped.
+    /// Spawn the worker + reader threads bound to `display` (or
+    /// `$DISPLAY` if `None`). Both threads exit when this handle is
+    /// dropped.
     pub fn spawn(display: Option<&str>) -> Result<Self, PlatformError> {
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = unbounded::<Cmd>();
         let display = display.map(ToOwned::to_owned);
-        let join = Builder::new()
+        let worker = Builder::new()
             .name("x11-clipboard".into())
             .spawn(move || {
                 if let Err(err) = run_worker(display.as_deref(), &rx) {
@@ -88,13 +110,13 @@ impl X11Clipboard {
             .map_err(|e| PlatformError::Other(format!("spawn clipboard thread: {e}")))?;
         Ok(Self {
             tx,
-            join: Some(join),
+            worker: Some(worker),
         })
     }
 
     /// Read the current selection in the requested format. Returns an
-    /// empty `Bytes` when the selection is empty or the format is not
-    /// on offer.
+    /// empty [`Bytes`] when the selection is empty or the format is
+    /// not on offer.
     pub async fn read(
         &self,
         id: ClipboardId,
@@ -108,9 +130,11 @@ impl X11Clipboard {
                 reply: reply_tx,
             })
             .map_err(|_| PlatformError::Other("clipboard worker gone".into()))?;
-        reply_rx
-            .await
-            .map_err(|_| PlatformError::Other("clipboard reply dropped".into()))?
+        match tokio::time::timeout(READ_TIMEOUT, reply_rx).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(PlatformError::Other("clipboard reply dropped".into())),
+            Err(_) => Err(PlatformError::ClipboardTimeout),
+        }
     }
 
     /// Take ownership of the selection and serve this payload for
@@ -139,7 +163,7 @@ impl X11Clipboard {
 impl Drop for X11Clipboard {
     fn drop(&mut self) {
         let _ = self.tx.send(Cmd::Shutdown);
-        if let Some(handle) = self.join.take() {
+        if let Some(handle) = self.worker.take() {
             let _ = handle.join();
         }
     }
@@ -155,6 +179,7 @@ struct Atoms {
     html: Atom,
     targets: Atom,
     reply_prop: Atom,
+    wakeup: Atom,
 }
 
 impl Atoms {
@@ -173,6 +198,7 @@ impl Atoms {
             html: intern_one(conn, b"text/html")?,
             targets: intern_one(conn, b"TARGETS")?,
             reply_prop: intern_one(conn, b"INPUT_LEAP_CLIPBOARD")?,
+            wakeup: intern_one(conn, b"INPUT_LEAP_WAKEUP")?,
         })
     }
 
@@ -216,10 +242,22 @@ impl OwnedStore {
     }
 }
 
-fn run_worker(display: Option<&str>, rx: &mpsc::Receiver<Cmd>) -> Result<(), PlatformError> {
+/// A read waiting for its `SelectionNotify` to come back.
+struct PendingRead {
+    /// Selection atom the reader asked for; used only for logging.
+    #[allow(dead_code, reason = "useful for future multi-selection debugging")]
+    selection: Atom,
+    /// Target atom (format) the reader asked for.
+    target: Atom,
+    /// Where to send the final payload.
+    reply: oneshot::Sender<Result<Bytes, PlatformError>>,
+}
+
+fn run_worker(display: Option<&str>, cmd_rx: &Receiver<Cmd>) -> Result<(), PlatformError> {
     let (conn, screen_num) = x11rb::connect(display).map_err(|e| {
         PlatformError::Unavailable(format!("clipboard: cannot open X display: {e}"))
     })?;
+    let conn = Arc::new(conn);
     let root = conn.setup().roots[screen_num].root;
 
     // Create an invisible owner window to attach selections to and
@@ -244,51 +282,146 @@ fn run_worker(display: Option<&str>, rx: &mpsc::Receiver<Cmd>) -> Result<(), Pla
 
     let atoms = Atoms::intern(&conn)?;
     let mut owned = OwnedStore::default();
+    let mut pending = VecDeque::<PendingRead>::new();
 
-    loop {
-        // Drain any X events that are already pending before blocking
-        // on the command channel.
-        drain_events(&conn, window, &atoms, &owned);
-
-        match rx.recv_timeout(Duration::from_millis(50)) {
-            Err(mpsc::RecvTimeoutError::Timeout) => continue,
-            Err(mpsc::RecvTimeoutError::Disconnected) => break,
-            Ok(Cmd::Shutdown) => break,
-            Ok(Cmd::Read { id, format, reply }) => {
-                let result = read_selection(&conn, window, &atoms, &owned, id, format);
-                let _ = reply.send(result);
+    // Spawn the X reader thread. It blocks in wait_for_event and
+    // forwards every event back to us on a crossbeam channel.
+    let (xevt_tx, xevt_rx) = unbounded::<Event>();
+    let reader_conn = Arc::clone(&conn);
+    let reader = Builder::new()
+        .name("x11-clipboard-reader".into())
+        .spawn(move || loop {
+            match reader_conn.wait_for_event() {
+                Ok(ev) => {
+                    if xevt_tx.send(ev).is_err() {
+                        break; // main worker dropped the receiver — we're done.
+                    }
+                }
+                Err(err) => {
+                    warn!(error = %err, "X clipboard reader connection lost");
+                    break;
+                }
             }
-            Ok(Cmd::Write {
-                id,
-                format,
-                data,
-                reply,
-            }) => {
-                let result = write_selection(&conn, window, &atoms, &mut owned, id, format, data);
-                let _ = reply.send(result);
+        })
+        .map_err(|e| PlatformError::Other(format!("spawn clipboard reader thread: {e}")))?;
+
+    'outer: loop {
+        select! {
+            recv(cmd_rx) -> msg => {
+                match msg {
+                    Err(_) | Ok(Cmd::Shutdown) => break 'outer,
+                    Ok(Cmd::Read { id, format, reply }) => {
+                        dispatch_read(&conn, window, &atoms, &mut pending, id, format, reply);
+                    }
+                    Ok(Cmd::Write { id, format, data, reply }) => {
+                        let result =
+                            write_selection(&conn, window, &atoms, &mut owned, id, format, data);
+                        let _ = reply.send(result);
+                    }
+                }
+            }
+            recv(xevt_rx) -> ev => {
+                let Ok(ev) = ev else { break 'outer; };
+                handle_x_event(&conn, window, &atoms, &owned, &mut pending, ev);
             }
         }
     }
+
+    // Graceful shutdown. Unblock any still-pending reads, wake the
+    // reader with a self-sent ClientMessage so it can exit its
+    // wait_for_event, then join.
+    while let Some(pr) = pending.pop_front() {
+        let _ = pr
+            .reply
+            .send(Err(PlatformError::Other(
+                "clipboard worker shutting down".into(),
+            )));
+    }
+    drop(xevt_rx); // reader's send() will start failing on next event.
+    wake_reader(&conn, window, atoms.wakeup);
+    let _ = reader.join();
 
     let _ = conn.destroy_window(window).map(|c| c.check());
     Ok(())
 }
 
-fn drain_events(conn: &RustConnection, window: Window, atoms: &Atoms, owned: &OwnedStore) {
-    while let Ok(Some(event)) = conn.poll_for_event() {
-        match event {
-            Event::SelectionRequest(req) => {
-                if let Err(err) = handle_selection_request(conn, window, atoms, owned, req) {
-                    warn!(error = %err, "failed to service SelectionRequest");
-                }
+/// Issue a `ConvertSelection` and park a `PendingRead` in the queue.
+fn dispatch_read(
+    conn: &RustConnection,
+    window: Window,
+    atoms: &Atoms,
+    pending: &mut VecDeque<PendingRead>,
+    id: ClipboardId,
+    format: ClipboardFormat,
+    reply: oneshot::Sender<Result<Bytes, PlatformError>>,
+) {
+    let Some(target) = atoms.format_target(format) else {
+        // Format we don't implement on this backend — return empty so
+        // the caller can try another format from the peer's offer.
+        let _ = reply.send(Ok(Bytes::new()));
+        return;
+    };
+    let selection = atoms.selection_atom(id);
+
+    // Clear any stale reply property so we don't read old data if the
+    // owner flakes out and never responds.
+    let _ = conn
+        .delete_property(window, atoms.reply_prop)
+        .map(|c| c.check());
+
+    if let Err(err) =
+        conn.convert_selection(window, selection, target, atoms.reply_prop, CURRENT_TIME)
+    {
+        let _ = reply.send(Err(PlatformError::connection_lost(err)));
+        return;
+    }
+    if let Err(err) = conn.flush() {
+        let _ = reply.send(Err(PlatformError::connection_lost(err)));
+        return;
+    }
+
+    pending.push_back(PendingRead {
+        selection,
+        target,
+        reply,
+    });
+}
+
+#[allow(clippy::needless_pass_by_value, reason = "consumed by match bindings")]
+fn handle_x_event(
+    conn: &RustConnection,
+    window: Window,
+    atoms: &Atoms,
+    owned: &OwnedStore,
+    pending: &mut VecDeque<PendingRead>,
+    ev: Event,
+) {
+    match ev {
+        Event::SelectionRequest(req) => {
+            if let Err(err) = handle_selection_request(conn, window, atoms, owned, req) {
+                warn!(error = %err, "failed to service SelectionRequest");
             }
-            Event::SelectionClear(_) => {
-                // Another app took ownership; we just stop responding
-                // and keep our stored data for future writes.
-                debug!("lost clipboard selection (another app took ownership)");
-            }
-            _ => {}
         }
+        Event::SelectionNotify(ev) if ev.requestor == window => {
+            let Some(pr) = pending.pop_front() else {
+                debug!("received SelectionNotify with no pending read");
+                return;
+            };
+            let result = if ev.property == x11rb::NONE {
+                // Owner could not satisfy our request.
+                Ok(Bytes::new())
+            } else {
+                fetch_property(conn, window, atoms.reply_prop, pr.target)
+            };
+            let _ = pr.reply.send(result);
+        }
+        Event::SelectionClear(_) => {
+            debug!("lost clipboard selection (another app took ownership)");
+        }
+        Event::ClientMessage(msg) if msg.type_ == atoms.wakeup => {
+            // Dummy event we sent to ourselves during shutdown.
+        }
+        _ => {}
     }
 }
 
@@ -378,66 +511,6 @@ fn write_selection(
     Ok(())
 }
 
-fn read_selection(
-    conn: &RustConnection,
-    window: Window,
-    atoms: &Atoms,
-    owned: &OwnedStore,
-    id: ClipboardId,
-    format: ClipboardFormat,
-) -> Result<Bytes, PlatformError> {
-    let Some(target) = atoms.format_target(format) else {
-        return Ok(Bytes::new());
-    };
-    let selection = atoms.selection_atom(id);
-
-    // Clear any stale reply first so we don't read old data.
-    let _ = conn
-        .delete_property(window, atoms.reply_prop)
-        .map(|c| c.check());
-
-    conn.convert_selection(window, selection, target, atoms.reply_prop, CURRENT_TIME)
-        .map_err(PlatformError::connection_lost)?
-        .check()
-        .map_err(PlatformError::connection_lost)?;
-    conn.flush().map_err(PlatformError::connection_lost)?;
-
-    let deadline = Instant::now() + READ_TIMEOUT;
-    loop {
-        if Instant::now() >= deadline {
-            return Err(PlatformError::ClipboardTimeout);
-        }
-        let event = match conn.poll_for_event().map_err(PlatformError::connection_lost)? {
-            Some(e) => e,
-            None => {
-                std::thread::sleep(Duration::from_millis(10));
-                continue;
-            }
-        };
-        match event {
-            Event::SelectionNotify(ev) if ev.requestor == window => {
-                if ev.property == x11rb::NONE {
-                    // Owner couldn't give us this format.
-                    return Ok(Bytes::new());
-                }
-                return fetch_property(conn, window, atoms.reply_prop, ev.target);
-            }
-            Event::SelectionRequest(req) => {
-                // We are the owner — service our own request inline so
-                // the SelectionNotify actually shows up in our queue.
-                if let Err(err) = handle_selection_request(conn, window, atoms, owned, req) {
-                    warn!(error = %err, "failed to service SelectionRequest (inline)");
-                }
-            }
-            Event::SelectionClear(_) => {
-                // Someone else took ownership while we were reading —
-                // nothing for us to do here, keep polling.
-            }
-            _ => {}
-        }
-    }
-}
-
 fn fetch_property(
     conn: &RustConnection,
     window: Window,
@@ -454,6 +527,24 @@ fn fetch_property(
         return Ok(Bytes::new());
     }
     Ok(Bytes::from(reply.value))
+}
+
+/// Send a `ClientMessage` to our own window so the reader thread's
+/// `wait_for_event` returns and it can notice that its outbound channel
+/// has been closed.
+fn wake_reader(conn: &RustConnection, window: Window, wakeup_atom: Atom) {
+    let msg = ClientMessageEvent {
+        response_type: CLIENT_MESSAGE_EVENT,
+        format: 32,
+        sequence: 0,
+        window,
+        type_: wakeup_atom,
+        data: [0u8; 20].into(),
+    };
+    let _ = conn
+        .send_event(false, window, EventMask::NO_EVENT, msg)
+        .map(|c| c.check());
+    let _ = conn.flush();
 }
 
 // Re-export for the screen module to avoid an unused-import warning

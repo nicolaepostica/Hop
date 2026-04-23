@@ -96,6 +96,7 @@ arc-swap    = { version = "1" }
 backoff     = { version = "0.4", features = ["tokio"] }
 chrono      = { version = "0.4", default-features = false, features = ["std", "serde", "now"] }
 async-trait = { version = "0.1" }
+crossbeam-channel = { version = "0.5" }
 
 # --- platform: linux/x11 ---
 x11rb = { version = "0.13", features = ["xtest", "randr"] }

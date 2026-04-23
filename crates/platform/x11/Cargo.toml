@@ -17,6 +17,7 @@ input-leap-platform = { workspace = true }
 
 async-trait = { workspace = true }
 bytes       = { workspace = true }
+crossbeam-channel = { workspace = true }
 futures     = { workspace = true }
 tokio       = { workspace = true, features = ["rt", "sync", "macros", "net"] }
 tracing     = { workspace = true }
