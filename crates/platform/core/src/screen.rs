@@ -1,10 +1,13 @@
 //! The `PlatformScreen` trait and its supporting `ScreenInfo` type.
 
 use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use futures::stream::Stream;
 use input_leap_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
+use tokio_util::sync::{CancellationToken, DropGuard};
 
 use crate::error::PlatformError;
 use crate::events::InputEvent;
@@ -36,6 +39,86 @@ impl ScreenInfo {
             cursor_y: 0,
             scale_factor_pct: 100,
         }
+    }
+}
+
+/// Cancellable stream of local input events.
+///
+/// Wraps any `Stream<Item = InputEvent>` together with a
+/// [`CancellationToken`] the backend's producer task monitors. Dropping
+/// the `EventStream` cancels the token (via [`DropGuard`]), signalling
+/// any background thread / task feeding the stream that it should stop
+/// and release its resources — X connection, libei socket, `wait_for_*`
+/// blocking calls. This gives callers an explicit handle on the
+/// backend's lifecycle instead of relying on implicit "the stream was
+/// dropped, the task will figure it out."
+///
+/// The token can also be cancelled early via [`Self::shutdown`] while
+/// keeping the stream alive to drain in-flight events.
+pub struct EventStream {
+    inner: Pin<Box<dyn Stream<Item = InputEvent> + Send + 'static>>,
+    /// Held for its Drop side-effect only; cancels the token when
+    /// `EventStream` is dropped.
+    _shutdown: DropGuard,
+    /// Separate clone the caller can trigger cancellation through.
+    token: CancellationToken,
+}
+
+impl EventStream {
+    /// Wrap `stream` so its producer can be signalled via `shutdown`.
+    ///
+    /// `shutdown` is the same token the backend's producer task is
+    /// watching; cancelling it (either directly or by dropping the
+    /// `EventStream`) tells the producer to exit.
+    pub fn new<S>(stream: S, shutdown: CancellationToken) -> Self
+    where
+        S: Stream<Item = InputEvent> + Send + 'static,
+    {
+        let token = shutdown.clone();
+        Self {
+            inner: Box::pin(stream),
+            _shutdown: shutdown.drop_guard(),
+            token,
+        }
+    }
+
+    /// Convenience for streams that have no owned background work —
+    /// the returned `EventStream` uses a fresh, detached token.
+    pub fn detached<S>(stream: S) -> Self
+    where
+        S: Stream<Item = InputEvent> + Send + 'static,
+    {
+        Self::new(stream, CancellationToken::new())
+    }
+
+    /// Cancel the backend's producer without waiting for the stream to
+    /// be dropped. Further [`Stream::poll_next`] calls will still yield
+    /// whatever has already been produced until the backend closes the
+    /// channel.
+    pub fn shutdown(&self) {
+        self.token.cancel();
+    }
+
+    /// Has the backend been asked to stop?
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.token.is_cancelled()
+    }
+}
+
+impl std::fmt::Debug for EventStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EventStream")
+            .field("cancelled", &self.token.is_cancelled())
+            .finish_non_exhaustive()
+    }
+}
+
+impl Stream for EventStream {
+    type Item = InputEvent;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.inner.as_mut().poll_next(cx)
     }
 }
 
@@ -99,8 +182,12 @@ pub trait PlatformScreen: Send + Sync + 'static {
 
     /// Produce a stream of locally-observed input events.
     ///
-    /// Called once per server lifetime; returning an empty stream is
-    /// legal (backends that cannot capture, or `MockScreen` in tests
-    /// that do not care about incoming events).
-    fn event_stream(&self) -> impl Stream<Item = InputEvent> + Send + 'static;
+    /// Returns an [`EventStream`] — a `Stream<Item = InputEvent>` that
+    /// carries an embedded shutdown signal. Dropping the `EventStream`
+    /// (or calling [`EventStream::shutdown`]) tells the backend's
+    /// producer task to release any held resources (X connection,
+    /// libei socket, `wait_for_*` calls). Called once per server
+    /// lifetime; returning an empty stream is legal for backends that
+    /// cannot capture local input.
+    fn event_stream(&self) -> EventStream;
 }

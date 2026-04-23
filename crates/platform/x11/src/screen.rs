@@ -3,9 +3,9 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use futures::stream::{self, Stream};
+use futures::stream;
 use input_leap_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
-use input_leap_platform::{InputEvent, PlatformError, PlatformScreen, ScreenInfo};
+use input_leap_platform::{EventStream, PlatformError, PlatformScreen, ScreenInfo};
 use tracing::{debug, warn};
 use x11rb::connection::{Connection, RequestConnection};
 use x11rb::protocol::xproto::Window;
@@ -186,9 +186,9 @@ impl PlatformScreen for X11Screen {
         self.info
     }
 
-    fn event_stream(&self) -> impl Stream<Item = InputEvent> + Send + 'static {
+    fn event_stream(&self) -> EventStream {
         warn!("X11 event capture not implemented yet (M4); event_stream is empty");
-        stream::empty()
+        EventStream::detached(stream::empty())
     }
 }
 

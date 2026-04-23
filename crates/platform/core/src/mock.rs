@@ -7,12 +7,12 @@
 use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
-use futures::stream::{self, Stream};
+use futures::stream;
 use input_leap_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
 
 use crate::error::PlatformError;
 use crate::events::{InjectedEvent, InputEvent};
-use crate::screen::{PlatformScreen, ScreenInfo};
+use crate::screen::{EventStream, PlatformScreen, ScreenInfo};
 
 /// Configurable no-op platform backend used in tests.
 ///
@@ -142,12 +142,12 @@ impl PlatformScreen for MockScreen {
         self.inner.info
     }
 
-    fn event_stream(&self) -> impl Stream<Item = InputEvent> + Send + 'static {
+    fn event_stream(&self) -> EventStream {
         let taken = {
             let mut guard = self.inner.scripted.lock().expect("scripted mutex");
             std::mem::take(&mut *guard)
         };
-        stream::iter(taken)
+        EventStream::detached(stream::iter(taken))
     }
 }
 

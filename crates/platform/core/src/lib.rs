@@ -13,4 +13,4 @@ mod screen;
 pub use self::error::PlatformError;
 pub use self::events::{InjectedEvent, InputEvent};
 pub use self::mock::MockScreen;
-pub use self::screen::{PlatformScreen, ScreenInfo};
+pub use self::screen::{EventStream, PlatformScreen, ScreenInfo};

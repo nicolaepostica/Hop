@@ -5,9 +5,9 @@
 //! it with a call to `CGDisplayBounds(CGMainDisplayID())`.
 
 use bytes::Bytes;
-use futures::stream::{self, Stream};
+use futures::stream;
 use input_leap_common::{ButtonId, ClipboardFormat, ClipboardId, KeyId, ModifierMask};
-use input_leap_platform::{InputEvent, PlatformError, PlatformScreen, ScreenInfo};
+use input_leap_platform::{EventStream, PlatformError, PlatformScreen, ScreenInfo};
 
 /// macOS platform backend (scaffold).
 #[derive(Debug)]
@@ -84,8 +84,8 @@ impl PlatformScreen for MacOsScreen {
         self.info
     }
 
-    fn event_stream(&self) -> impl Stream<Item = InputEvent> + Send + 'static {
-        stream::empty()
+    fn event_stream(&self) -> EventStream {
+        EventStream::detached(stream::empty())
     }
 }
 
