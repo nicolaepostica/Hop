@@ -400,7 +400,15 @@ fn run_fingerprint(args: FingerprintArgs) -> Result<()> {
     }
 }
 
-#[cfg(target_os = "linux")]
+/// Per-OS backend selection for `input-leaps`.
+///
+/// Each `#[cfg]` block below is mutually exclusive; at compile time
+/// exactly one of the "try X before falling back" blocks is kept, and
+/// the final `MockScreen` arm catches any OS that has no native
+/// backend yet. Keeping the cascade inside one function (instead of
+/// the five `mod backend` blocks it replaced) means adding a new
+/// backend only touches one place.
+#[allow(clippy::used_underscore_binding, reason = "cfg-gated: _shutdown is used on Linux only")]
 mod backend {
     use std::sync::Arc;
 
@@ -408,119 +416,67 @@ mod backend {
     use input_leap_platform::MockScreen;
     use input_leap_server::{run, ServerConfig};
     use tokio_util::sync::CancellationToken;
+    #[allow(unused_imports, reason = "cfg-gated")]
     use tracing::{debug, info, warn};
 
     pub async fn run_server(cfg: ServerConfig, shutdown: CancellationToken) -> Result<()> {
+        #[cfg(target_os = "linux")]
         match input_leap_platform_ei::EiScreen::try_open() {
             Ok(screen) => {
                 info!("using libei platform backend");
-                return run(cfg, Arc::new(screen), shutdown).await.map_err(Into::into);
+                return run(cfg, Arc::new(screen), shutdown)
+                    .await
+                    .map_err(Into::into);
             }
             Err(err) => debug!(error = %err, "libei backend unavailable; trying X11"),
         }
+
+        #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
         match input_leap_platform_x11::X11Screen::open(None) {
             Ok(screen) => {
                 info!("using X11 platform backend");
-                run(cfg, Arc::new(screen), shutdown).await.map_err(Into::into)
+                return run(cfg, Arc::new(screen), shutdown)
+                    .await
+                    .map_err(Into::into);
             }
-            Err(err) => {
-                warn!(error = %err, "X11 unavailable; falling back to MockScreen");
-                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await.map_err(Into::into)
-            }
+            Err(err) => warn!(error = %err, "X11 unavailable; falling back to MockScreen"),
         }
-    }
-}
 
-#[cfg(any(target_os = "freebsd", target_os = "openbsd"))]
-mod backend {
-    use std::sync::Arc;
-
-    use anyhow::Result;
-    use input_leap_platform::MockScreen;
-    use input_leap_server::{run, ServerConfig};
-    use tokio_util::sync::CancellationToken;
-    use tracing::{info, warn};
-
-    pub async fn run_server(cfg: ServerConfig, shutdown: CancellationToken) -> Result<()> {
-        match input_leap_platform_x11::X11Screen::open(None) {
-            Ok(screen) => {
-                info!("using X11 platform backend");
-                run(cfg, Arc::new(screen), shutdown).await.map_err(Into::into)
-            }
-            Err(err) => {
-                warn!(error = %err, "X11 unavailable; falling back to MockScreen");
-                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await.map_err(Into::into)
-            }
-        }
-    }
-}
-
-#[cfg(target_os = "macos")]
-mod backend {
-    use std::sync::Arc;
-
-    use anyhow::Result;
-    use input_leap_platform::MockScreen;
-    use input_leap_server::{run, ServerConfig};
-    use tokio_util::sync::CancellationToken;
-    use tracing::{info, warn};
-
-    pub async fn run_server(cfg: ServerConfig, shutdown: CancellationToken) -> Result<()> {
+        #[cfg(target_os = "macos")]
         match input_leap_platform_macos::MacOsScreen::try_open() {
             Ok(screen) => {
                 info!("using macOS platform backend");
-                run(cfg, Arc::new(screen), shutdown).await.map_err(Into::into)
+                return run(cfg, Arc::new(screen), shutdown)
+                    .await
+                    .map_err(Into::into);
             }
-            Err(err) => {
-                warn!(error = %err, "macOS backend unavailable; falling back to MockScreen");
-                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await.map_err(Into::into)
-            }
+            Err(err) => warn!(error = %err, "macOS backend unavailable; falling back to MockScreen"),
         }
-    }
-}
 
-#[cfg(windows)]
-mod backend {
-    use std::sync::Arc;
-
-    use anyhow::Result;
-    use input_leap_platform::MockScreen;
-    use input_leap_server::{run, ServerConfig};
-    use tokio_util::sync::CancellationToken;
-    use tracing::{info, warn};
-
-    pub async fn run_server(cfg: ServerConfig, shutdown: CancellationToken) -> Result<()> {
+        #[cfg(windows)]
         match input_leap_platform_windows::WindowsScreen::try_open() {
             Ok(screen) => {
                 info!("using Windows platform backend");
-                run(cfg, Arc::new(screen), shutdown).await.map_err(Into::into)
+                return run(cfg, Arc::new(screen), shutdown)
+                    .await
+                    .map_err(Into::into);
             }
             Err(err) => {
                 warn!(error = %err, "Windows backend unavailable; falling back to MockScreen");
-                run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await.map_err(Into::into)
             }
         }
-    }
-}
 
-#[cfg(not(any(
-    target_os = "linux",
-    target_os = "freebsd",
-    target_os = "openbsd",
-    target_os = "macos",
-    windows
-)))]
-mod backend {
-    use std::sync::Arc;
-
-    use anyhow::Result;
-    use input_leap_platform::MockScreen;
-    use input_leap_server::{run, ServerConfig};
-    use tokio_util::sync::CancellationToken;
-    use tracing::warn;
-
-    pub async fn run_server(cfg: ServerConfig, shutdown: CancellationToken) -> Result<()> {
+        #[cfg(not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "macos",
+            windows
+        )))]
         warn!("no native platform backend on this OS yet; using MockScreen");
-        run(cfg, Arc::new(MockScreen::default_stub()), shutdown).await.map_err(Into::into)
+
+        run(cfg, Arc::new(MockScreen::default_stub()), shutdown)
+            .await
+            .map_err(Into::into)
     }
 }
