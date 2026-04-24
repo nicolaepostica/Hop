@@ -37,6 +37,8 @@ jobs:
             bundle: msi
 
     runs-on: ${{ matrix.os }}
+    env:
+      HAVE_SIGNING: ${{ secrets.APPLE_CERT_P12_BASE64 != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -78,7 +80,7 @@ jobs:
             --target ${{ matrix.target }}
 
       - name: Sign and notarize (macOS)
-        if: matrix.bundle == 'osx' && secrets.APPLE_CERT_P12_BASE64 != ''
+        if: matrix.bundle == 'osx' && env.HAVE_SIGNING == 'true'
         run: ./scripts/ci/macos-sign-and-notarize.sh
         env:
           TARGET:                   ${{ matrix.target }}
