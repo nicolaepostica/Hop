@@ -27,7 +27,7 @@ impl IpcHandler for StubHandler {
         let label = self.status_label.lock().await.clone();
         let peers = self.peers.lock().await.len();
         StatusReply {
-            listen_addr: "127.0.0.1:24800".into(),
+            listen_addr: "127.0.0.1:25900".into(),
             display_name: label,
             local_fingerprint: "sha256:stub".into(),
             trusted_peer_count: peers,

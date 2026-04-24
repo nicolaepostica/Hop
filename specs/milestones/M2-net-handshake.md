@@ -110,12 +110,12 @@ Land a working end-to-end channel "Rust server ↔ Rust client" over TCP + TLS, 
   - `pub async fn run(config: ClientConfig, screen: impl PlatformScreen) -> Result<()>` — connect + handshake + event loop
   - The event side (`screen.event_stream`) pushes into the void for now (MockScreen returns an empty stream)
 - [ ] `bins/hops/src/main.rs`:
-  - `clap` derive with `--listen 0.0.0.0:24800`, `--name`, `--cert-dir`, `--fingerprint-db`
+  - `clap` derive with `--listen 0.0.0.0:25900`, `--name`, `--cert-dir`, `--fingerprint-db`
   - `tracing_subscriber::fmt().init()`
   - Create `MockScreen`, call `server::run`
   - Clean shutdown on `SIGINT` / `Ctrl+C`
 - [ ] `bins/hopc/src/main.rs`:
-  - Same shape, with `--connect 127.0.0.1:24800`, `--server-fingerprint`, `--name`
+  - Same shape, with `--connect 127.0.0.1:25900`, `--server-fingerprint`, `--name`
 
 ### Tests
 
@@ -156,8 +156,8 @@ Land a working end-to-end channel "Rust server ↔ Rust client" over TCP + TLS, 
 
 ## Acceptance criteria
 
-- [ ] `cargo run --bin hops -- --listen 127.0.0.1:24800 --name server-a` starts, listens on the port, logs `fingerprint: sha256:...`
-- [ ] `cargo run --bin hopc -- --connect 127.0.0.1:24800 --server-fingerprint sha256:... --name client-b` connects, handshake succeeds, both print `peer connected`
+- [ ] `cargo run --bin hops -- --listen 127.0.0.1:25900 --name server-a` starts, listens on the port, logs `fingerprint: sha256:...`
+- [ ] `cargo run --bin hopc -- --connect 127.0.0.1:25900 --server-fingerprint sha256:... --name client-b` connects, handshake succeeds, both print `peer connected`
 - [ ] On `Ctrl+C` from either side — graceful disconnect, both processes exit with code 0
 - [ ] The e2e integration test passes in CI (Linux/macOS/Windows) in under 15 seconds
 - [ ] All unit/integration tests are green

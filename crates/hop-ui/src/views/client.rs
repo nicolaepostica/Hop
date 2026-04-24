@@ -25,7 +25,7 @@ impl Default for ClientState {
     fn default() -> Self {
         Self {
             name: hostname_fallback(),
-            server_addr: "192.168.1.10:24800".into(),
+            server_addr: "192.168.1.10:25900".into(),
             server_fingerprint: String::new(),
             connected: false,
         }

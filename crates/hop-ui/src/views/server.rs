@@ -25,7 +25,7 @@ impl Default for ServerState {
     fn default() -> Self {
         Self {
             name: hostname_fallback(),
-            listen_addr: "0.0.0.0:24800".into(),
+            listen_addr: "0.0.0.0:25900".into(),
             running: false,
         }
     }

@@ -136,7 +136,7 @@ Layout lives in a **separate file** `layout.toml`, not inside the main `config.t
 ```toml
 # ~/.config/hop/config.toml
 
-listen_addr = "0.0.0.0:24800"
+listen_addr = "0.0.0.0:25900"
 display_name = "desk"
 
 [tls]

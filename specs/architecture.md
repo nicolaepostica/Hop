@@ -53,7 +53,7 @@ PlatformScreen (X11/macOS/Win/EI)            PlatformScreen (X11/macOS/Win/EI)
         |                                            |
    InputEvent stream                          inject_*(key/mouse/...)
         |                                            |
-    Server task  ──── TCP:24800 / TLS ────   Client task
+    Server task  ──── TCP:25900 / TLS ────   Client task
         |                                            |
    ScreenRouter                               ServerProxy
         |
@@ -62,7 +62,7 @@ PlatformScreen (X11/macOS/Win/EI)            PlatformScreen (X11/macOS/Win/EI)
 
 **Handshake (v1):**
 
-1. Server listens on `0.0.0.0:24800`.
+1. Server listens on `0.0.0.0:25900`.
 2. Client connects, TLS handshake (`tokio-rustls`). The server verifies the client's fingerprint against the local DB.
 3. Exchange `Hello` messages (CBOR) with `protocol_version: u16`, `display_name: String`, `capabilities: Vec<Capability>`.
 4. Server sends `DeviceInfoRequest` → client replies with `DeviceInfo` carrying screen dimensions.
@@ -285,7 +285,7 @@ At the OS level, files in a clipboard look like:
 
 1. Ctrl+C on one or more files/folders → Ctrl+V on another machine → all files appear in the target machine's drop directory.
 2. Folders are copied recursively; the nesting is preserved.
-3. Transfer goes over the same TLS connection (port 24800); no separate channel.
+3. Transfer goes over the same TLS connection (port 25900); no separate channel.
 4. Clipboard sync is **pull-on-demand**: a grab announces ownership, contents move only on an explicit paste.
 5. Drop directory is configurable; default — `<user_download_dir>/Hop/` via `directories::UserDirs`.
 6. For transfers > 10 MB, IPC emits progress events to the GUI (sender and receiver) every 5% or 1 s, whichever comes first.

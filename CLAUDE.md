@@ -85,7 +85,7 @@ User Input on Primary
 Platform Layer (XWindows/OSX/MSWindows)
        ↓
 Server (hops)  ←──IPC──→  GUI (hop)
-       ↓ TCP/SSL port 24800
+       ↓ TCP/SSL port 25900
 Client (hopc)
        ↓
 Platform Layer (secondary machine)
@@ -95,7 +95,7 @@ Injected Input Events
 
 ### Network Protocol
 
-Custom binary protocol (Synergy-compatible, version 1.6) over TCP port 24800:
+Custom binary protocol (Synergy-compatible, version 1.6) over TCP port 25900:
 
 - Handshake: `HELLO` / `HELLOBACK`
 - Message codes are 4-byte identifiers (e.g., `kMsgCEnter`, `kMsgDKeyDown`)

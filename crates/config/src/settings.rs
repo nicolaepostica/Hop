@@ -180,11 +180,11 @@ pub struct ConfigOverrides {
 // Defaults -----------------------------------------------------------------
 
 fn default_listen() -> SocketAddr {
-    "0.0.0.0:24800".parse().expect("literal socket addr")
+    "0.0.0.0:25900".parse().expect("literal socket addr")
 }
 
 fn default_connect() -> SocketAddr {
-    "127.0.0.1:24800".parse().expect("literal socket addr")
+    "127.0.0.1:25900".parse().expect("literal socket addr")
 }
 
 fn default_server_name() -> String {
@@ -322,7 +322,7 @@ mod tests {
     #[serial(env)]
     fn defaults_produce_sane_server_settings() {
         let s = ServerSettings::default();
-        assert_eq!(s.listen_addr.port(), 24800);
+        assert_eq!(s.listen_addr.port(), 25900);
         assert_eq!(s.display_name, "hop-server");
         assert!(s.file_transfer.enabled);
     }
@@ -400,7 +400,7 @@ listen_addr = "0.0.0.0:12345"
     #[serial(env)]
     fn client_settings_have_distinct_defaults() {
         let c = ClientSettings::default();
-        assert_eq!(c.server_addr.to_string(), "127.0.0.1:24800");
+        assert_eq!(c.server_addr.to_string(), "127.0.0.1:25900");
         assert_eq!(c.display_name, "hop-client");
     }
 

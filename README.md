@@ -106,7 +106,7 @@ On the primary (server) machine:
 # First run generates ~/.local/share/hop/tls/{cert,key}.pem
 hops fingerprint show         # copy this sha256:… string
 hops fingerprint add laptop sha256:<client-fingerprint>
-hops                          # listen on 0.0.0.0:24800
+hops                          # listen on 0.0.0.0:25900
 ```
 
 On the secondary (client) machine:
@@ -114,7 +114,7 @@ On the secondary (client) machine:
 ```bash
 hopc fingerprint show         # copy your fingerprint to the server
 hopc fingerprint add desk sha256:<server-fingerprint>
-hopc --server 192.168.1.10:24800 --name laptop
+hopc --server 192.168.1.10:25900 --name laptop
 ```
 
 Now move the cursor off the edge of the server's screen — it jumps.
@@ -127,7 +127,7 @@ Now move the cursor off the edge of the server's screen — it jumps.
  │                      │        │                      │
  │  keyboard ─┐         │  mTLS  │                      │
  │  mouse   ──┤         │◄──────►│                      │
- │            ▼         │ :24800 │                      │
+ │            ▼         │ :25900 │                      │
  │   Coordinator ──────── msg ───► Coordinator proxy    │
  │   (layout + routing) │        │   ▼                  │
  │                      │        │  inject input        │
