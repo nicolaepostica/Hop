@@ -85,7 +85,12 @@ pub fn show(ui: &mut Ui, state: &mut ServerState, shared: &mut Shared<'_>) {
                         .min_size(egui::vec2(100.0, 32.0))
                         .fill(fill);
                         if ui.add(btn).clicked() {
-                            state.running = !state.running;
+                            if state.running {
+                                shared.stop_backend();
+                            } else {
+                                shared.start_server(&state.name, &state.listen_addr);
+                                state.running = shared.is_running();
+                            }
                         }
                     },
                 );

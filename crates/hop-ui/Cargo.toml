@@ -17,6 +17,7 @@ egui          = { workspace = true }
 egui-phosphor = { workspace = true }
 egui-notify   = { workspace = true }
 tracing       = { workspace = true }
+thiserror     = { workspace = true }
 arboard       = { workspace = true }
 directories   = { workspace = true }
 anyhow        = { workspace = true }
@@ -24,5 +25,26 @@ chrono            = { workspace = true }
 gethostname       = { workspace = true }
 local-ip-address  = { workspace = true }
 
-hop-net    = { workspace = true }
-hop-config = { workspace = true }
+tokio      = { workspace = true, features = ["rt-multi-thread", "sync", "time", "macros"] }
+tokio-util = { workspace = true, features = ["rt"] }
+
+hop-common    = { workspace = true }
+hop-protocol  = { workspace = true }
+hop-net       = { workspace = true }
+hop-config    = { workspace = true }
+hop-server    = { workspace = true }
+hop-client    = { workspace = true }
+hop-platform  = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+hop-platform-ei  = { workspace = true }
+hop-platform-x11 = { workspace = true }
+
+[target.'cfg(any(target_os = "freebsd", target_os = "openbsd"))'.dependencies]
+hop-platform-x11 = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+hop-platform-macos = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+hop-platform-windows = { workspace = true }

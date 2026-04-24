@@ -78,7 +78,16 @@ pub fn show(ui: &mut Ui, state: &mut ClientState, shared: &mut Shared<'_>) {
                         .min_size(egui::vec2(120.0, 32.0))
                         .fill(fill);
                         if ui.add(btn).clicked() {
-                            state.connected = !state.connected;
+                            if state.connected {
+                                shared.stop_backend();
+                            } else {
+                                shared.start_client(
+                                    &state.name,
+                                    &state.server_addr,
+                                    &state.server_fingerprint,
+                                );
+                                state.connected = shared.is_running();
+                            }
                         }
                     },
                 );

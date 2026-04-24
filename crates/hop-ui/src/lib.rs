@@ -9,6 +9,7 @@
 
 mod app;
 mod identity;
+mod runtime;
 mod theme;
 mod util;
 mod views;
