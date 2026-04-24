@@ -1,82 +1,70 @@
 # M12 — Release Packaging
 
-## Цель
+## Goal
 
-Собрать автоматический релизный конвейер: на `git tag v*` из CI выходят
-готовые артефакты под Linux, macOS и Windows. Пользователь скачивает
-файл под свою OS, двойной клик → приложение запускается; для Unix есть
-ещё `curl | sh` установщик.
+Land an automated release pipeline: on `git tag v*`, CI produces ready-to-install artefacts for Linux, macOS and Windows. The user downloads the file for their OS, double-clicks — the app starts; for Unix there's also a `curl | sh` installer.
 
-Покрывает три pending-таска из session-todo:
-- **#7** — генерация `hop.icns` из `assets/hop.png`.
+Covers the three pending session-todo items:
+- **#7** — generate `hop.icns` from `assets/hop.png`.
 - **#8** — macOS code signing + notarization.
-- **#9** — GitHub Actions release workflow с matrix Linux/macOS/Windows.
+- **#9** — GitHub Actions release workflow with a Linux/macOS/Windows matrix.
 
 ## Scope
 
-**В области:**
-- Мультиразмерные иконки на всех платформах: `.icns` (macOS), `.ico`
-  (Windows), `.png` + `.desktop` (Linux). Источник — `assets/hop.svg`.
-- `[package.metadata.bundle]` уже лежит в `bins/hop/Cargo.toml`
-  (заложено в M11 post-commit).
-- GitHub Actions release workflow, триггер — git-тег `v*`.
-- macOS: `cargo bundle --format osx` → `.app` → `codesign` → `notarytool`
-  submit → `stapler staple` → упаковка в `.dmg`.
-- Linux: `cargo bundle --format deb` → `.deb`; плюс self-contained
-  tar.gz с бинарём и `hop.desktop`.
-- Windows: `cargo bundle --format msi` или `cargo-wix` → `.msi`.
-- SHA256 checksums для всех артефактов.
-- Universal `curl | sh` installer скрипт для Unix (опционально).
+**In scope:**
+- Multi-size icons on every platform: `.icns` (macOS), `.ico` (Windows), `.png` + `.desktop` (Linux). Source: `assets/hop.svg`.
+- `[package.metadata.bundle]` already lives in `bins/hop/Cargo.toml` (landed in the M11 post-commit).
+- GitHub Actions release workflow, triggered on the `v*` git tag.
+- macOS: `cargo bundle --format osx` → `.app` → `codesign` → `notarytool` submit → `stapler staple` → pack into `.dmg`.
+- Linux: `cargo bundle --format deb` → `.deb`; plus a self-contained `tar.gz` with the binary and `hop.desktop`.
+- Windows: `cargo bundle --format msi` or `cargo-wix` → `.msi`.
+- SHA256 checksums for every artefact.
+- Universal `curl | sh` installer script for Unix (optional).
 
 **Out of scope:**
-- Homebrew formula / apt repository — отдельный M12.1.
+- Homebrew formula / apt repository — a separate M12.1.
 - Windows MSIX / Microsoft Store.
-- Flatpak / Snap — отдельный M12.2.
+- Flatpak / Snap — a separate M12.2.
 - Auto-update mechanism — M13.
-- Windows code signing — обсуждается в §5, но сам setup отложен
-  (требует покупки сертификата или заявки в SignPath OSS).
+- Windows code signing — discussed in §5 but deferred (requires buying a cert or applying to SignPath OSS).
 
-## Архитектура
+## Architecture
 
-### Директории и файлы
+### Directories and files
 
 ```
 assets/                          # brand source of truth
-├── hop.svg                      # мастер-иконка (векторная)
-├── hop.png                      # 512×512 raster, сгенерировано из SVG
+├── hop.svg                      # master icon (vector)
+├── hop.png                      # 512×512 raster, generated from SVG
 ├── hop.desktop                  # Linux XDG desktop entry
 ├── hop.icns                     # NEW — macOS icon bundle (#7)
 ├── hop.ico                      # NEW — Windows multi-size ICO
-└── iconset/                     # NEW — промежуточные PNG для .icns
+└── iconset/                     # NEW — intermediate PNGs for .icns
     ├── icon_16x16.png
     ├── icon_16x16@2x.png
     ├── ...
     └── icon_512x512@2x.png
 
 scripts/
-└── gen-icons.sh                 # NEW — регенерирует .icns/.ico/iconset из hop.svg
+└── gen-icons.sh                 # NEW — regenerates .icns/.ico/iconset from hop.svg
 
 .github/
 └── workflows/
     └── release.yml              # NEW — M12 main deliverable
 ```
 
-### Что цепляется за иконки
+### What the icons tie into
 
-- `crates/hop-ui/src/lib.rs` — `include_bytes!("../../../assets/hop.png")`
-  (рантайм-иконка окна). Не меняется.
-- `bins/hop/Cargo.toml` — `[package.metadata.bundle]` уже ссылается
-  на `../../assets/hop.icns` и `../../assets/hop.png`. После M12 #7
-  файлы физически появятся.
+- `crates/hop-ui/src/lib.rs` — `include_bytes!("../../../assets/hop.png")` (runtime window icon). Unchanged.
+- `bins/hop/Cargo.toml` — `[package.metadata.bundle]` already references `../../assets/hop.icns` and `../../assets/hop.png`. After M12 #7 those files exist on disk.
 
-## Детали реализации
+## Implementation details
 
-### 1. Иконки (task #7)
+### 1. Icons (task #7)
 
-**Источник:** `assets/hop.svg`. Всё остальное — производные; их
-регенерация автоматизирована в `scripts/gen-icons.sh`.
+**Source:** `assets/hop.svg`. Everything else is derived; regeneration is automated in `scripts/gen-icons.sh`.
 
-**Iconset для macOS** (Apple требует конкретные имена файлов):
+**Iconset for macOS** (Apple requires specific filenames):
 ```
 icon_16x16.png       16×16
 icon_16x16@2x.png    32×32
@@ -90,12 +78,11 @@ icon_512x512.png     512×512
 icon_512x512@2x.png  1024×1024
 ```
 
-**`hop.icns`** собирается из iconset'а:
-- На macOS: `iconutil -c icns assets/iconset -o assets/hop.icns`.
-- На Linux/в CI: `png2icns assets/hop.icns assets/iconset/*.png`
-  (из пакета `icnsutils`).
+**`hop.icns`** is built from the iconset:
+- On macOS: `iconutil -c icns assets/iconset -o assets/hop.icns`.
+- On Linux / in CI: `png2icns assets/hop.icns assets/iconset/*.png` (from the `icnsutils` package).
 
-**`hop.ico`** для Windows — multi-size ICO со страницами 16/32/48/256:
+**`hop.ico`** for Windows — multi-size ICO with pages 16/32/48/256:
 ```bash
 convert assets/iconset/icon_16x16.png \
         assets/iconset/icon_32x32.png \
@@ -103,7 +90,7 @@ convert assets/iconset/icon_16x16.png \
         assets/iconset/icon_256x256.png \
         assets/hop.ico
 ```
-(ImageMagick 6 или 7; `magick convert` на 7.x.)
+(ImageMagick 6 or 7; `magick convert` on 7.x.)
 
 **`scripts/gen-icons.sh`:**
 ```bash
@@ -121,7 +108,7 @@ mv assets/iconset/_16.png   assets/iconset/icon_16x16.png
 mv assets/iconset/_32.png   assets/iconset/icon_16x16@2x.png
 cp assets/iconset/icon_16x16@2x.png assets/iconset/icon_32x32.png
 mv assets/iconset/_64.png   assets/iconset/icon_32x32@2x.png
-# ... (аналогично для 128/256/512/1024)
+# ... (same shape for 128/256/512/1024)
 
 # .icns
 if command -v iconutil >/dev/null; then
@@ -138,33 +125,27 @@ convert assets/iconset/icon_16x16.png \
         assets/hop.ico
 ```
 
-**Коммитим результат:** все сгенерированные файлы (`hop.icns`, `hop.ico`,
-iconset/) идут в репозиторий. Это убирает зависимость CI от
-`rsvg-convert` / `iconutil` и делает билды детерминированными. При
-изменении `hop.svg` разработчик один раз запускает
-`./scripts/gen-icons.sh` и коммитит.
+**We commit the output:** every generated file (`hop.icns`, `hop.ico`, `iconset/`) goes into the repository. This removes the CI dependency on `rsvg-convert` / `iconutil` and makes builds deterministic. When `hop.svg` changes, a developer runs `./scripts/gen-icons.sh` once and commits.
 
 ### 2. macOS signing + notarization (task #8)
 
-**Требования Apple:**
-- Apple Developer Program membership — **$99/год**. Даёт Developer ID.
-- Сертификат "Developer ID Application" из Keychain Access → Request
-  Certificate from CA → upload CSR в developer.apple.com → скачать `.cer`.
-- Экспорт в `.p12` c паролем для переноса в CI.
-- App-specific password для `notarytool`: appleid.apple.com → Sign-In
-  and Security → App-Specific Passwords.
+**Apple requirements:**
+- Apple Developer Program membership — **$99/year**. That provides a Developer ID.
+- "Developer ID Application" certificate via Keychain Access → Request Certificate from CA → upload CSR to developer.apple.com → download the `.cer`.
+- Export into `.p12` with a password to transport into CI.
+- An app-specific password for `notarytool`: appleid.apple.com → Sign-In and Security → App-Specific Passwords.
 
 **GitHub Secrets:**
-| Имя | Что |
+| Name | What |
 |---|---|
-| `APPLE_CERT_P12_BASE64` | `base64 < DevID.p12` — весь сертификат |
-| `APPLE_CERT_PASSWORD` | пароль от `.p12` |
-| `APPLE_SIGNING_IDENTITY` | строка вида `"Developer ID Application: Jane Doe (TEAMID12)"` |
-| `APPLE_ID` | твой Apple ID email |
-| `APPLE_APP_PASSWORD` | app-specific password |
-| `APPLE_TEAM_ID` | 10-символьный team ID |
+| `APPLE_CERT_P12_BASE64` | `base64 < DevID.p12` — the whole cert |
+| `APPLE_CERT_PASSWORD` | password to the `.p12` |
+| `APPLE_SIGNING_IDENTITY` | string like `"Developer ID Application: Jane Doe (TEAMID12)"` |
+| `APPLE_ID` | your Apple ID email |
+| `APPLE_APP_PASSWORD` | the app-specific password |
+| `APPLE_TEAM_ID` | 10-character team ID |
 
-**CI-шаги на macOS runner:**
+**CI steps on a macOS runner:**
 ```yaml
 - name: Import Developer ID certificate
   run: |
@@ -206,20 +187,15 @@ iconset/) идут в репозиторий. Это убирает зависи
       -ov -format UDZO Hop.dmg
 ```
 
-**Без подписи:** релиз всё равно можно собирать и выкладывать; при
-первом запуске macOS покажет Gatekeeper warning. Пользователь должен
-будет кликнуть правой → Open → Open, или выполнить
-`xattr -cr /Applications/Hop.app`. В README отражаем оба сценария:
-подписанные релизы (рекомендуемый путь) и unsigned-инструкция для
-self-build.
+**Without signing:** you can still build and publish; on first launch macOS shows a Gatekeeper warning. The user right-clicks → Open → Open, or runs `xattr -cr /Applications/Hop.app`. The README should cover both paths: signed releases (the recommended flow) and an unsigned instruction for self-builds.
 
 ### 3. GitHub Actions release workflow (task #9)
 
-Файл: `.github/workflows/release.yml`
+File: `.github/workflows/release.yml`
 
-**Триггер:** `push` tag `v*` + `workflow_dispatch` для ручного запуска.
+**Trigger:** `push` tag `v*` + `workflow_dispatch` for manual runs.
 
-**Структура jobs:**
+**Jobs layout:**
 
 ```yaml
 on:
@@ -311,130 +287,78 @@ jobs:
           generate_release_notes: true
 ```
 
-**Ключевые решения:**
-1. **fail-fast: false** — падение одной OS не стопает остальные;
-   релизёр может ручно перезапустить сломавшийся job.
-2. **Swatinem/rust-cache** обязателен — без него каждый build тянет
-   весь dep tree (>5 мин на runner).
-3. **arm64 macOS как отдельная matrix-строка** — Universal binary
-   лучше собирать отдельными шагами и сшивать `lipo`, но в MVP
-   достаточно двух отдельных .app (x86_64 и aarch64). В README
-   напишем какой качать.
-4. **Подпись только на macOS** — Windows пока unsigned (§5);
-   Linux `.deb` не подписываем (секция dpkg-sig опциональна).
-5. **Тег-триггер:** release-job упаковывает только при `v*`. На
-   других push'ах (feature branches) build matrix работает как CI
-   smoke, артефакты остаются в actions/artifacts на 7 дней.
+**Key decisions:**
+1. **fail-fast: false** — one OS failing doesn't stop the others; the releaser can rerun a broken job.
+2. **Swatinem/rust-cache** is mandatory — without it every build pulls the whole dep tree (>5 min on a runner).
+3. **arm64 macOS as a separate matrix row** — a Universal binary is nicer as `lipo`-merged artefact, but for MVP two separate `.app`s (x86_64 and aarch64) are enough. The README explains which to download.
+4. **Signing only on macOS** — Windows stays unsigned for now (§5); Linux `.deb` isn't signed (dpkg-sig is optional).
+5. **Tag trigger:** the release job publishes only on `v*`. On other pushes (feature branches) the build matrix works as a CI smoke; artefacts stay in actions/artifacts for 7 days.
 
-### 4. Linux Installer альтернатив
+### 4. Linux installer alternatives
 
-`.deb` — основной формат. Дополнительно стоит:
-- **AppImage** (`cargo install cargo-appimage && cargo appimage --bin hop`)
-  — portable single-file, не требует root. Добавим как второй artefact.
-- **`.tar.gz`** — просто бинарь + `assets/hop.desktop` + README. Для
-  тех кто не хочет `dpkg -i`.
+`.deb` is the primary format. Useful additions:
+- **AppImage** (`cargo install cargo-appimage && cargo appimage --bin hop`) — portable single file, no root required. Ship it as a second artefact.
+- **`.tar.gz`** — just the binary + `assets/hop.desktop` + README, for people who don't want `dpkg -i`.
 
-Рекомендуемый путь установки Ubuntu/Debian — `.deb`; Arch/Fedora/
-other — AppImage.
+Recommended install path on Ubuntu/Debian — `.deb`; Arch/Fedora/others — AppImage.
 
-### 5. Windows signing (отложено)
+### 5. Windows signing (deferred)
 
-Без подписи `.msi` сработает, но SmartScreen покажет "Unknown
-publisher" warning и пользователь должен будет нажать "More info →
-Run anyway". Это не блокирует — просто не premium UX.
+Without signing, the `.msi` works, but SmartScreen shows an "Unknown publisher" warning and the user has to click "More info → Run anyway". Not a blocker — just not premium UX.
 
-Варианты когда будем подписывать:
-- **SignPath.io** — бесплатно для OSS (после approval, неделя).
-- **Sectigo / DigiCert EV cert** — ~$150-400/год; лучше репутация
-  у SmartScreen.
-- **Azure Trusted Signing** — ~$10/мес, но только для зарегистрированных
-  публишеров.
+Options, when we're ready to sign:
+- **SignPath.io** — free for OSS (after approval, ~a week).
+- **Sectigo / DigiCert EV cert** — ~$150–400/year; better SmartScreen reputation.
+- **Azure Trusted Signing** — ~$10/month, but only for registered publishers.
 
-Откладывается до момента первого публичного релиза; в M12 ограничиваемся
-notarized macOS + unsigned Windows.
+Deferred until the first public release; in M12 we ship notarized macOS + unsigned Windows.
 
-## Порядок имплементации
+## Implementation order
 
-1. **`scripts/gen-icons.sh`** + сгенерированные `hop.icns`, `hop.ico`,
-   `assets/iconset/` — закоммичены. (Task #7)
-   - Проверка: `cargo bundle --release --format osx` локально на Mac
-     даёт `Hop.app` с нашей иконкой в Finder.
-2. **`.github/workflows/release.yml`** без подписи: Linux + Mac
-   (unsigned) + Windows (unsigned). Тестируется через
-   `workflow_dispatch` на feature-branch. (Task #9, часть 1)
-   - Проверка: ручной запуск workflow производит 4 артефакта
-     (deb, osx x64, osx arm64, msi), у каждого есть `.sha256`.
-3. **Apple Developer ID setup** — вручную: регистрация, CSR, экспорт
-   в `.p12`, заливка secrets в GitHub. (Task #8, часть preparation)
-4. **`scripts/ci/macos-sign-and-notarize.sh`** + соответствующий
-   шаг в workflow. (Task #8, часть implementation)
-   - Проверка: staged релиз с тега `v0.0.0-rc1`; скачать `.dmg`,
-     установить, проверить что Gatekeeper не ругается.
-5. **Полноценный тегированный релиз** — пуш тега `v0.1.0`, artifacts
-   автоматически лежат в GitHub Releases. (Milestone exit criterion)
+1. **`scripts/gen-icons.sh`** + generated `hop.icns`, `hop.ico`, `assets/iconset/` — committed. (Task #7)
+   - Check: `cargo bundle --release --format osx` locally on a Mac produces a `Hop.app` that shows our icon in Finder.
+2. **`.github/workflows/release.yml`** without signing: Linux + Mac (unsigned) + Windows (unsigned). Tested via `workflow_dispatch` on a feature branch. (Task #9, part 1)
+   - Check: a manual workflow run produces 4 artefacts (deb, osx x64, osx arm64, msi), each with a `.sha256`.
+3. **Apple Developer ID setup** — manual: registration, CSR, export to `.p12`, upload secrets to GitHub. (Task #8, preparation)
+4. **`scripts/ci/macos-sign-and-notarize.sh`** + the matching workflow step. (Task #8, implementation)
+   - Check: a staged release off `v0.0.0-rc1`; download the `.dmg`, install, confirm Gatekeeper is quiet.
+5. **Full tagged release** — push `v0.1.0`, artefacts land on GitHub Releases automatically. (Milestone exit criterion)
 
-## Тестовый план
+## Test plan
 
-| Что | Как |
+| What | How |
 |---|---|
-| Icon generation | Ручной ран `./scripts/gen-icons.sh` + проверка размеров через `file assets/hop.icns`, `identify assets/hop.ico`. |
-| Linux `.deb` | `sudo dpkg -i hop_*.deb && which hop && hop --version` в Docker Ubuntu 22.04. |
-| Linux AppImage | `./Hop-*.AppImage` запуск в чистом контейнере без системного GTK. |
-| macOS `.app` unsigned | `open Hop.app` → ожидаемый Gatekeeper dialog → right-click Open. |
+| Icon generation | Manual `./scripts/gen-icons.sh` run + size check via `file assets/hop.icns`, `identify assets/hop.ico`. |
+| Linux `.deb` | `sudo dpkg -i hop_*.deb && which hop && hop --version` in a Docker Ubuntu 22.04 container. |
+| Linux AppImage | `./Hop-*.AppImage` launch in a clean container without system GTK. |
+| macOS `.app` unsigned | `open Hop.app` → expected Gatekeeper dialog → right-click Open. |
 | macOS `.app` signed+notarized | `spctl -a -t exec -vv Hop.app` → `source=Notarized Developer ID`. |
-| Windows `.msi` | Установить в Windows 11 VM, проверить shortcut в Start menu. |
+| Windows `.msi` | Install on a Windows 11 VM, verify shortcut in Start menu. |
 | SHA256 sums | `shasum -a 256 -c hop_*.sha256`. |
-| Release workflow | `gh workflow run release.yml --ref <test-branch>` + проверка артефактов. |
-| Tag-triggered release | `git tag v0.0.0-rc1 && git push --tags` → GitHub Release появляется автоматически. |
+| Release workflow | `gh workflow run release.yml --ref <test-branch>` + verify artefacts. |
+| Tag-triggered release | `git tag v0.0.0-rc1 && git push --tags` → GitHub Release shows up automatically. |
 
-## Оценка + риски
+## Estimate + risks
 
-**Время:**
-- #7 icons: **3-4 часа** (включая sanity-проверку на Mac).
-- #9 workflow (без подписей): **1 день** (много итераций через
-  `act` / `workflow_dispatch`, редко получается с первого раза).
-- #8 signing: **1-2 часа** настройки + **½ дня** отладки
-  notarytool (первый раз он часто ругается на minor issues в
-  entitlements/hardened runtime).
+**Time:**
+- #7 icons: **3–4 hours** (including a sanity check on a Mac).
+- #9 workflow (unsigned): **1 day** (many iterations via `act` / `workflow_dispatch`, rarely works first try).
+- #8 signing: **1–2 hours** of setup + **half a day** of `notarytool` debugging (it usually complains about minor entitlement / hardened-runtime issues the first time).
 
-**Итого:** ~3 дня чистой работы, растянуть на неделю из-за Apple
-asynchronous steps (выпуск cert, notarization latency).
+**Total:** ~3 days of focused work, stretched to a week because of Apple's asynchronous steps (cert issuance, notarization latency).
 
-**Риски:**
-- **Notarization fail.** Apple может отклонить bundle из-за
-  отсутствия hardened runtime / неправильных entitlements. Митигация:
-  локально погонять `notarytool` в dry-run, `--options runtime` уже в
-  кодсайн-команде.
-- **arm64 macOS runners.** `macos-latest` на GitHub сейчас arm64;
-  x86_64 билды требуют `macos-13` runner. Учтено в matrix.
-- **cargo-bundle зрелость.** Местами багованный (напр.
-  `--target aarch64-apple-darwin` порой проваливается). План B —
-  вручную копировать бинарь в `.app/Contents/MacOS/` через скрипт,
-  если cargo-bundle ломается.
-- **.deb runtime deps.** Нетривиально угадать минимальный набор; в
-  текущем `[package.metadata.bundle]` задан разумный старт, но
-  реальное тестирование в чистом Ubuntu контейнере может потребовать
-  корректировок.
+**Risks:**
+- **Notarization failure.** Apple may reject the bundle over missing hardened runtime or bad entitlements. Mitigation: run `notarytool` locally in dry-run first; `--options runtime` is already on the codesign command.
+- **arm64 macOS runners.** `macos-latest` on GitHub is arm64 today; x86_64 builds need a `macos-13` runner. Handled in the matrix.
+- **cargo-bundle maturity.** Buggy in spots (e.g. `--target aarch64-apple-darwin` sometimes fails). Plan B: manually copy the binary into `.app/Contents/MacOS/` via a script if cargo-bundle breaks.
+- **.deb runtime deps.** Non-trivial to guess the minimum set; the current `[package.metadata.bundle]` has a reasonable start, but real testing in a clean Ubuntu container may require adjustments.
 
 ## Resolved / deferred decisions
 
-1. **cargo-bundle vs cargo-dist.** cargo-dist проще настраивается
-   (auto-generates workflow), но делает только `.tar.gz`/`.zip` — не
-   `.app`/`.deb`/`.msi`. Нам нужны native-пакеты, поэтому выбираем
-   **cargo-bundle** вручную. Если в будущем Apple/Microsoft
-   integration усложнится — можно мигрировать на cargo-dist для
-   archives + отдельный action для bundle.
+1. **cargo-bundle vs cargo-dist.** cargo-dist is simpler to configure (auto-generates a workflow) but only produces `.tar.gz`/`.zip` — not `.app`/`.deb`/`.msi`. We need native packages, so we pick **cargo-bundle** by hand. If Apple/Microsoft integration later gets harder, we can migrate to cargo-dist for archives + a separate action for bundles.
 
-2. **Iconset под контролем версий.** Рассматривался вариант
-   генерировать `.icns`/`.ico` on-the-fly в каждом CI run. Отклонено
-   — увеличивает время сборки, вводит rsvg-convert/iconutil как
-   CI dep, даёт недетерминированные выходы. Коммитим готовые
-   артефакты; регенерация — через `scripts/gen-icons.sh`.
+2. **Iconset under version control.** We considered generating `.icns`/`.ico` on the fly in every CI run. Rejected — it lengthens builds, makes rsvg-convert/iconutil CI-wide dependencies, and gives non-deterministic outputs. Commit the artefacts; regenerate via `scripts/gen-icons.sh`.
 
-3. **Universal macOS binary.** Два отдельных `.app` (x86_64 и arm64)
-   — MVP. Universal (lipo-merged) — отдельная оптимизация когда
-   pipeline устаканится. Пользователь на странице релизов видит два
-   артефакта с понятными именами (`Hop-x86_64.dmg`, `Hop-arm64.dmg`).
+3. **Universal macOS binary.** Two separate `.app`s (x86_64 and arm64) — MVP. A Universal (lipo-merged) build is a later optimisation once the pipeline is stable. Users see two clearly-named artefacts on the releases page (`Hop-x86_64.dmg`, `Hop-arm64.dmg`).
 
-4. **Windows signing.** Отложено до первого публичного релиза;
-   в M12 выпускаем unsigned с честным warning в README.
+4. **Windows signing.** Deferred until the first public release; for M12 we ship unsigned with an honest warning in the README.

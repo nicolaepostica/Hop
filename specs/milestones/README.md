@@ -1,52 +1,52 @@
 # Milestones — Rust Rewrite
 
-План переписывания Hop на Rust разбит на вертикальные срезы. Каждый milestone заканчивается работающим артефактом (запускаемый бинарь, проходящий интеграционный тест или рабочая end-to-end демка).
+The Hop Rust rewrite is broken into vertical slices. Each milestone ends with a runnable artefact — a binary you can execute, an integration test that passes, or a working end-to-end demo.
 
-Главный спек: [`../rust-rewrite.md`](../rust-rewrite.md).
+Main spec: [`../architecture.md`](../architecture.md).
 
-## Обзор
+## Overview
 
-| M | Артефакт | Спек |
+| M | Artefact | Sub-spec |
 |---|---|---|
-| [M0](M0-skeleton.md) | Скелет воркспейса, CI, tooling | детально |
-| [M1](M1-protocol.md) | `protocol` крейт: CBOR-сообщения v1, property-тесты, golden snapshots | детально |
-| [M2](M2-net-handshake.md) | `net` крейт: TCP + TLS + handshake + mock screen + integration test | детально |
-| M3 | `platform/x11`: рабочий сервер+клиент между двумя Linux/X11 машинами | пишется при приближении |
-| M4 | Clipboard (текст/HTML) + `config` крейт (TOML) | пишется при приближении |
-| M5 | `ipc` крейт + адаптация Qt GUI под новый IPC | пишется при приближении |
-| M6 | `platform/ei`: Wayland/libei через `reis` + portal | пишется при приближении |
-| M7 | `platform/macos` | пишется при приближении |
-| M8 | `platform/windows` | пишется при приближении |
-| M9 | File clipboard (см. [`../file-clipboard.md`](../file-clipboard.md)) | пишется при приближении |
-| M10 | Windows service mode (`hops --service`) | пишется при приближении |
+| [M0](M0-skeleton.md) | Workspace skeleton, CI, tooling | detailed |
+| [M1](M1-protocol.md) | `protocol` crate: CBOR messages v1, property tests, golden snapshots | detailed |
+| [M2](M2-net-handshake.md) | `net` crate: TCP + TLS + handshake + mock screen + integration test | detailed |
+| M3 | `platform/x11`: working server+client between two Linux/X11 machines | written when approached |
+| M4 | Clipboard (text/HTML) + `config` crate (TOML) | written when approached |
+| M5 | `ipc` crate + GUI adaptation to the new IPC | written when approached |
+| M6 | `platform/ei`: Wayland/libei via `reis` + portal | written when approached |
+| M7 | `platform/macos` | written when approached |
+| M8 | `platform/windows` | written when approached |
+| M9 | File clipboard (see [`../architecture.md#file-clipboard-m9`](../architecture.md#file-clipboard-m9)) | written when approached |
+| M10 | Windows service mode (`hops --service`) | written when approached |
 
-## Принципы декомпозиции
+## Decomposition principles
 
-1. **Вертикальные срезы.** Каждый M даёт запускаемый артефакт, а не «недоделанный слой». Это держит CI зелёным и позволяет регулярно проверять гипотезы на живом коде.
-2. **Тестируемость — часть acceptance.** Ни один milestone не «завершён», пока нет proptest / integration test, покрывающего его контракт.
-3. **Backend-бэки — независимые M.** X11, macOS, Windows, libei изолированы друг от друга. Провал одной платформы не блокирует остальные.
-4. **Qt GUI подключается поздно (M5).** До этого используем CLI/IPC-клиент для smoke-тестов.
-5. **Cherry-picking разрешён.** Milestones пронумерованы, но если M7 (macOS) становится важнее M6 — можно переставить, при условии что зависимости (M0–M2) сделаны.
+1. **Vertical slices.** Every milestone ships a runnable artefact, not a "half-finished layer". Keeps CI green and lets us validate hypotheses on live code continuously.
+2. **Testability is part of acceptance.** No milestone is "done" until a proptest / integration test covers its contract.
+3. **Platform backends are independent milestones.** X11, macOS, Windows, and libei are isolated. A failure in one platform does not block the others.
+4. **GUI lands late (M5).** Until then we use the CLI/IPC client for smoke tests.
+5. **Cherry-picking allowed.** Milestones are numbered, but if M7 (macOS) becomes more important than M6 — feel free to reorder, as long as the dependencies (M0–M2) are complete.
 
-## Зависимости между milestones
+## Milestone dependencies
 
 ```
 M0 ─► M1 ─► M2 ─┬─► M3 (x11) ─┬─► M4 (clipboard + config)
                 │              │         │
-                ├─► M6 (ei)    │         └─► M5 (ipc + Qt)
+                ├─► M6 (ei)    │         └─► M5 (ipc + GUI)
                 ├─► M7 (macos) │                 │
                 └─► M8 (win)   │                 └─► M9 (file clipboard)
                                │
-                               └─► M10 (win service)  [зависит от M8]
+                               └─► M10 (win service)  [depends on M8]
 ```
 
-## Формат подспеков
+## Sub-spec format
 
-Каждый M-спек содержит секции:
-- **Цель** — зачем этот milestone
-- **Предпосылки** — какие milestones должны быть завершены
-- **Scope** — что входит / не входит
-- **Задачи** — декомпозиция на конкретные пункты (с чекбоксами)
-- **Acceptance criteria** — как понять, что готово
-- **Тесты** — какие тесты должны появиться
-- **Риски / open questions** — что может пойти не так
+Every milestone spec contains:
+- **Goal** — why this milestone exists
+- **Prerequisites** — which milestones must be finished first
+- **Scope** — what's in / what's out
+- **Tasks** — decomposition into concrete checklist items
+- **Acceptance criteria** — how we know it's done
+- **Tests** — which tests must appear
+- **Risks / open questions** — what could go wrong

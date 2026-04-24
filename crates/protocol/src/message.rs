@@ -127,7 +127,7 @@ pub enum Message {
 
     /// Announces a new file-clipboard transfer; the manifest arrives
     /// before any chunk so the receiver can pre-validate paths and
-    /// allocate staging space. See `specs/file-clipboard.md`.
+    /// allocate staging space. See `specs/architecture.md`.
     FileTransferStart {
         /// Unique identifier for this transfer.
         transfer_id: TransferId,

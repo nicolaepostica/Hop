@@ -34,7 +34,7 @@ pub enum ClipboardFormat {
     Html,
     /// Raw RGBA bitmap (implementation-defined header).
     Bitmap,
-    /// File list (see `specs/file-clipboard.md`, M9).
+    /// File list (see `specs/architecture.md`, M9).
     Files,
     /// An unrecognized format; present so old peers can discard unknown
     /// payloads sent by newer peers instead of dropping the connection.

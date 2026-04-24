@@ -1,35 +1,35 @@
-# M0 — Скелет воркспейса, CI, tooling
+# M0 — Workspace skeleton, CI, tooling
 
-## Цель
+## Goal
 
-Подготовить пустой, но полностью настроенный Cargo workspace с CI, линтами и dev-инструментами. После M0 любой новый код попадает в уже правильно настроенное окружение — не придётся возвращаться и переделывать CI/tooling позже.
+Prepare an empty but fully-configured Cargo workspace with CI, lints, and dev tooling. After M0 every new line of code lands in a correctly-configured environment — we won't have to come back and retrofit CI/tooling later.
 
-## Предпосылки
+## Prerequisites
 
-Нет.
+None.
 
 ## Scope
 
 **In scope:**
-- Cargo workspace с пустыми крейтами из структуры основного спека
-- Закреплённые версии всех основных зависимостей в `[workspace.dependencies]`
-- CI на GitHub Actions: Linux + macOS + Windows
-- Линты, форматирование, deny checks
-- `xtask` для dev-команд
+- Cargo workspace with empty crates matching the structure in the main spec
+- Pinned versions for all core dependencies in `[workspace.dependencies]`
+- GitHub Actions CI: Linux + macOS + Windows
+- Lints, formatting, deny checks
+- `xtask` for dev commands
 - Pinned MSRV
 
 **Out of scope:**
-- Любой продуктовый код в крейтах (только `//! TODO`-модули)
-- Реальные тесты (только infrastructure check)
-- Qt GUI изменения
+- Any product code in the crates (only `//! TODO` modules)
+- Real tests (only infrastructure checks)
+- GUI changes
 
-## Задачи
+## Tasks
 
 ### Workspace
 
-- [ ] Создать корневой `Cargo.toml` с `[workspace]` + `resolver = "2"`
-- [ ] `rust-toolchain.toml` с `channel = "stable"`, зафиксировать MSRV (>= 1.75 для AFIT)
-- [ ] Создать пустые крейты-библиотеки:
+- [ ] Create root `Cargo.toml` with `[workspace]` + `resolver = "2"`
+- [ ] `rust-toolchain.toml` with `channel = "stable"`, pin MSRV (>= 1.75 for AFIT)
+- [ ] Create empty library crates:
   - `crates/common/`
   - `crates/protocol/`
   - `crates/net/`
@@ -38,20 +38,20 @@
   - `crates/server/`
   - `crates/client/`
   - `crates/platform/core/`
-  - `crates/platform/x11/` (с `#[cfg(target_os = "linux")]` gate на крейт-уровне)
-  - `crates/platform/macos/` (с `#[cfg(target_os = "macos")]`)
-  - `crates/platform/windows/` (с `#[cfg(windows)]`)
-  - `crates/platform/ei/` (с `#[cfg(target_os = "linux")]`)
-- [ ] Создать пустые бинарные крейты:
-  - `bins/hops/` с `fn main()` печатающим version
-  - `bins/hopc/` с `fn main()` печатающим version
-  - `bins/hop-migrate/` (за feature flag, не билдится по умолчанию)
-- [ ] Создать `xtask/` с заглушками `cargo xtask ci`, `cargo xtask fmt`
-- [ ] Каждый крейт — `lib.rs` с `#![deny(warnings, unsafe_code)]` (snap-level, `unsafe` разрешается только в `platform/*/ffi.rs` через `#[allow(unsafe_code)]` локально)
+  - `crates/platform/x11/` (with crate-level `#[cfg(target_os = "linux")]` gate)
+  - `crates/platform/macos/` (with `#[cfg(target_os = "macos")]`)
+  - `crates/platform/windows/` (with `#[cfg(windows)]`)
+  - `crates/platform/ei/` (with `#[cfg(target_os = "linux")]`)
+- [ ] Create empty binary crates:
+  - `bins/hops/` with a `fn main()` that prints the version
+  - `bins/hopc/` with a `fn main()` that prints the version
+  - `bins/hop-migrate/` (behind a feature flag, not built by default)
+- [ ] Create `xtask/` with `cargo xtask ci`, `cargo xtask fmt` stubs
+- [ ] Each crate: `lib.rs` with `#![deny(warnings, unsafe_code)]` (snap-level — `unsafe` is only allowed inside `platform/*/ffi.rs` via a local `#[allow(unsafe_code)]`)
 
-### Dependencies (заполнить `[workspace.dependencies]`)
+### Dependencies (populate `[workspace.dependencies]`)
 
-Предварительный список — конкретные версии подбираются latest stable на момент M0:
+Preliminary list — concrete versions picked as the latest stable at M0 time:
 
 - `tokio` (multi-thread, full features disabled by default, per-crate opt-in)
 - `tokio-util` (codec)
@@ -67,13 +67,13 @@
 - `interprocess`
 - `backoff`
 - `arc-swap`
-- `x11rb` (только в `platform/x11`)
-- `reis` (только в `platform/ei`)
-- `windows` (только в `platform/windows`)
-- `objc2`, `core-graphics` (только в `platform/macos`)
+- `x11rb` (only in `platform/x11`)
+- `reis` (only in `platform/ei`)
+- `windows` (only in `platform/windows`)
+- `objc2`, `core-graphics` (only in `platform/macos`)
 - Dev: `proptest`, `insta`, `tokio-test`, `rstest`
 
-### Конфиги tooling
+### Tooling configs
 
 - [ ] `rustfmt.toml`:
   ```toml
@@ -87,12 +87,12 @@
   msrv = "1.75.0"
   avoid-breaking-exported-api = false
   ```
-- [ ] `deny.toml` для `cargo-deny`:
+- [ ] `deny.toml` for `cargo-deny`:
   - advisories: deny vulnerabilities
   - licenses: allow MIT/Apache-2.0/BSD-3-Clause/ISC/Unicode-DFS-2016; deny GPL
   - bans: deny multiple versions of `syn`, `tokio`, `rustls`
 - [ ] `.gitignore`: `/target`, `.DS_Store`, `*.swp`
-- [ ] `.editorconfig` (4 пробела, LF, UTF-8 per CLAUDE.md coding conventions)
+- [ ] `.editorconfig` (4 spaces, LF, UTF-8 per CLAUDE.md coding conventions)
 
 ### CI (GitHub Actions)
 
@@ -103,48 +103,48 @@
     - `cargo clippy --workspace --all-targets -- -D warnings`
     - `cargo build --workspace --all-targets`
     - `cargo nextest run --workspace`
-    - `cargo-deny check` (только Linux)
-  - Кеширование через `Swatinem/rust-cache@v2`
-- [ ] `.github/workflows/release.yml` — заглушка с ручным триггером (наполним в M10)
+    - `cargo-deny check` (Linux only)
+  - Caching via `Swatinem/rust-cache@v2`
+- [ ] `.github/workflows/release.yml` — stub with a manual trigger (fleshed out in M10)
 
 ### xtask
 
-- [ ] `cargo xtask ci` — локально прогоняет тот же набор, что CI
-- [ ] `cargo xtask fmt` — `cargo fmt` + форматирование TOML (`taplo fmt`)
-- [ ] `cargo xtask udeps` — `cargo +nightly udeps` для выявления неиспользуемых зависимостей (опциональная команда)
+- [ ] `cargo xtask ci` — runs the same suite as CI, locally
+- [ ] `cargo xtask fmt` — `cargo fmt` + TOML formatting (`taplo fmt`)
+- [ ] `cargo xtask udeps` — `cargo +nightly udeps` to surface unused dependencies (optional command)
 
-### Документация
+### Documentation
 
-- [ ] `README.md` в корне:
-  - Короткое описание проекта
+- [ ] `README.md` at the root:
+  - Short project description
   - Build instructions (`cargo build --workspace`)
-  - Ссылка на `specs/`
+  - Link to `specs/`
 - [ ] `CONTRIBUTING.md`:
-  - Как запустить CI локально (`cargo xtask ci`)
-  - Coding conventions (`snake_case` по Rust, 100-char lines)
-  - Где писать тесты
+  - How to run CI locally (`cargo xtask ci`)
+  - Coding conventions (`snake_case` per Rust, 100-char lines)
+  - Where tests live
 
 ## Acceptance criteria
 
-- [ ] `cargo build --workspace` проходит на Linux/macOS/Windows
+- [ ] `cargo build --workspace` passes on Linux/macOS/Windows
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings` — 0 warnings
 - [ ] `cargo fmt --all --check` — clean
-- [ ] `cargo nextest run --workspace` — 0 tests, 0 failures (OK для M0)
+- [ ] `cargo nextest run --workspace` — 0 tests, 0 failures (OK for M0)
 - [ ] `cargo deny check` — green
-- [ ] CI workflow триггерится на push/PR и проходит на всех трёх ОС
-- [ ] `./target/release/hops --version` и `./target/release/hopc --version` печатают корректную версию из `Cargo.toml`
-- [ ] Все крейты видны в `cargo tree --workspace`
+- [ ] CI workflow triggers on push/PR and passes on all three OSes
+- [ ] `./target/release/hops --version` and `./target/release/hopc --version` print the correct version from `Cargo.toml`
+- [ ] Every crate shows up in `cargo tree --workspace`
 
-## Тесты
+## Tests
 
-В M0 реального кода нет, но инфраструктура должна быть готова:
-- [ ] Dummy `#[test] fn smoke() { assert_eq!(2 + 2, 4); }` в `crates/common/tests/` — чтобы убедиться, что `cargo nextest` действительно что-то прогоняет
-- [ ] CI job, падающий при `cargo clippy` с искусственным warning — ручная проверка одной итерацией, потом убрать
+M0 has no real code, but the infrastructure must be in place:
+- [ ] Dummy `#[test] fn smoke() { assert_eq!(2 + 2, 4); }` in `crates/common/tests/` — proves `cargo nextest` actually runs something
+- [ ] A one-shot CI job that fails on a deliberate `cargo clippy` warning — manual check for one iteration, then remove
 
-## Риски / open questions
+## Risks / open questions
 
-1. **Tokio feature-flags в workspace deps:** указать `default-features = false` в workspace root, а конкретные feature-ы включать per-crate? Или наоборот — `full` в workspace, per-crate отключать? Рекомендую первый вариант (явные features → меньше compile time).
-2. **`reis` версия нестабильна.** Перед M0 проверить, что актуальный релиз собирается. Если нет — отложить до M6, добавить `reis` в `[workspace.dependencies]` как `optional = true` без вытягивания.
-3. **`cargo-deny` на Windows:** исторически флакает на лицензиях — запускать только на Linux, это нормально.
-4. **MSRV 1.75:** фиксированный минимум для AFIT-в-трейтах. Если к моменту M0 выйдет новая stable — подтянуть (не наоборот, не опускать ниже 1.75).
-5. **Naming:** workspace-package = `hop`? Или оставить `input-leap` и переименовать после удаления C++? Рекомендую `hop` до M10, чтобы не конфликтовать с C++-артефактами в CI на переходном этапе (даже если нет wire-compat, build-артефакты могут пересекаться).
+1. **Tokio feature flags in workspace deps:** set `default-features = false` at the workspace root and opt into specific features per-crate? Or the opposite — `full` at the workspace root and disable per-crate? Recommend the first (explicit features → less compile time).
+2. **`reis` version is unstable.** Before M0, check that the current release builds. If not — defer to M6 and add `reis` to `[workspace.dependencies]` as `optional = true` without pulling it in.
+3. **`cargo-deny` on Windows:** historically flakes on licenses — run it on Linux only; that's fine.
+4. **MSRV 1.75:** the minimum for AFIT-in-traits. If a newer stable ships before M0 starts — bump (never drop below 1.75).
+5. **Naming:** workspace-package = `hop`? Or keep `input-leap` and rename after removing C++? Recommend `hop` straight away so build artefacts don't collide with the C++ tree on CI during the transition (even without wire-compat, artefact paths can overlap).

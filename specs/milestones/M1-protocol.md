@@ -1,46 +1,46 @@
-# M1 — `protocol` crate: CBOR-сообщения v1, codec, тесты
+# M1 — `protocol` crate: CBOR messages v1, codec, tests
 
-## Цель
+## Goal
 
-Реализовать полную схему сетевых сообщений Hop v1 на serde+CBOR с length-delimited фреймингом. По завершении M1 любой крейт может импортировать `hop_protocol::{Message, Codec, ProtocolError}` и работать с серилизованными сообщениями поверх произвольного `AsyncRead`/`AsyncWrite`, даже без настоящей сети.
+Land the full Hop v1 wire message schema on serde+CBOR with length-delimited framing. Once M1 is done, any crate can import `hop_protocol::{Message, Codec, ProtocolError}` and work with serialised messages over an arbitrary `AsyncRead` / `AsyncWrite` — even without a real network.
 
-## Предпосылки
+## Prerequisites
 
-- [M0](M0-skeleton.md) — скелет воркспейса
+- [M0](M0-skeleton.md) — workspace skeleton
 
 ## Scope
 
 **In scope:**
-- Типы сообщений `Message` (enum) со всеми вариантами, перечисленными в основном спеке
-- Вспомогательные типы: `HelloPayload`, `DeviceInfoPayload`, `Capability`, `DisconnectReason`, `KeyId`, `ButtonId`, `ClipboardId`, `ClipboardFormat`, `ModifierMask`
-- CBOR сериализация/десериализация через `ciborium`
-- Фрейминг: `tokio_util::codec::LengthDelimitedCodec`, max frame 16 МиБ
-- `Encoder`/`Decoder` типы, скомбинированные через `FramedWrite`/`FramedRead`
-- `ProtocolError` через `thiserror`
-- Property tests (`proptest`): round-trip всех вариантов `Message`
-- Golden snapshot tests (`insta`): hex-дампы canonical-байтов для каждого варианта (документируют wire-формат)
-- Документация модуля на уровне `//!` с примером encode/decode
+- Message types `Message` (enum) with every variant listed in the main spec
+- Supporting types: `HelloPayload`, `DeviceInfoPayload`, `Capability`, `DisconnectReason`, `KeyId`, `ButtonId`, `ClipboardId`, `ClipboardFormat`, `ModifierMask`
+- CBOR serialise / deserialise via `ciborium`
+- Framing: `tokio_util::codec::LengthDelimitedCodec`, max frame 16 MiB
+- `Encoder` / `Decoder` types composed via `FramedWrite` / `FramedRead`
+- `ProtocolError` via `thiserror`
+- Property tests (`proptest`): round-trip every `Message` variant
+- Golden snapshot tests (`insta`): hex dumps of canonical bytes for each variant (they document the wire format)
+- Module-level `//!` documentation with an encode/decode example
 
 **Out of scope:**
-- File clipboard сообщения (M9)
-- Сеть (M2) — `protocol` работает поверх любого `AsyncRead`/`AsyncWrite`
+- File-clipboard messages (M9)
+- Networking (M2) — `protocol` runs over any `AsyncRead` / `AsyncWrite`
 - TLS (M2)
 - Handshake state machine (M2)
 
-## Задачи
+## Tasks
 
-### Типы сообщений
+### Message types
 
 - [ ] `crates/common/src/ids.rs`:
-  - `KeyId(u32)`, `ButtonId(u8)`, `ClipboardId(u8)` как newtype-обёртки
-  - `ModifierMask(u32)` как bitflags через `bitflags` crate
+  - `KeyId(u32)`, `ButtonId(u8)`, `ClipboardId(u8)` as newtype wrappers
+  - `ModifierMask(u32)` as bitflags via the `bitflags` crate
   - `ClipboardFormat` enum
   - Derive `Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize`
 - [ ] `crates/protocol/src/message.rs`:
-  - `enum Message` с `#[serde(tag = "type")]` и всеми вариантами из основного спека
+  - `enum Message` with `#[serde(tag = "type")]` and every variant from the main spec
   - `HelloPayload { protocol_version, display_name, capabilities }`
   - `DeviceInfoPayload { width, height, scale_factor, ... }`
-  - `enum Capability` с `#[serde(rename_all = "snake_case")]` и `#[serde(other)] Unknown` для forward-compat
+  - `enum Capability` with `#[serde(rename_all = "snake_case")]` and `#[serde(other)] Unknown` for forward-compat
   - `enum DisconnectReason { ProtocolVersionMismatch, KeepAliveTimeout, UnknownPeer, MalformedMessage, FrameTooLarge, UserInitiated, InternalError, ... }`
 - [ ] `crates/protocol/src/version.rs`:
   - `pub const PROTOCOL_VERSION: u16 = 1;`
@@ -49,10 +49,10 @@
 ### Codec
 
 - [ ] `crates/protocol/src/codec.rs`:
-  - `struct MessageCodec` с inner `LengthDelimitedCodec`
-  - `impl Encoder<Message> for MessageCodec` — ciborium в `BytesMut`
-  - `impl Decoder for MessageCodec { type Item = Message; }` — чтение фрейма, затем ciborium из среза
-  - Ошибки маппятся в `ProtocolError`
+  - `struct MessageCodec` wrapping a `LengthDelimitedCodec`
+  - `impl Encoder<Message> for MessageCodec` — ciborium into a `BytesMut`
+  - `impl Decoder for MessageCodec { type Item = Message; }` — read a frame, then ciborium from the slice
+  - Errors map to `ProtocolError`
 - [ ] Helper: `pub fn framed<T: AsyncRead + AsyncWrite>(io: T) -> Framed<T, MessageCodec>`
 
 ### Error handling
@@ -72,24 +72,24 @@
   }
   ```
 
-### Тесты
+### Tests
 
 - [ ] `crates/protocol/tests/roundtrip.rs`:
-  - `proptest!` для каждого варианта `Message` — генерируется случайная инстанция, сериализуется, десериализуется, сравнивается (`assert_eq!`)
-  - `Arbitrary` реализации через `proptest-derive` где возможно, вручную — для типов с инвариантами (например, `ModifierMask` — только валидные биты)
+  - `proptest!` per `Message` variant — random instance, serialise, deserialise, compare (`assert_eq!`)
+  - `Arbitrary` impls via `proptest-derive` where possible; manual for types with invariants (e.g. `ModifierMask` — only valid bits)
 - [ ] `crates/protocol/tests/snapshots.rs`:
-  - Для каждого варианта `Message` — canonical instance → serialize → `insta::assert_snapshot!(hex_dump)`
-  - Snapshots коммитятся в репо — документируют wire-формат и ловят несанкционированные изменения схемы
+  - For each `Message` variant — canonical instance → serialise → `insta::assert_snapshot!(hex_dump)`
+  - Snapshots committed to the repo — they document the wire format and catch unauthorised schema changes
 - [ ] `crates/protocol/tests/framing.rs`:
-  - Два `Message` пишутся в `Vec<u8>` через `FramedWrite`, читаются через `FramedRead` — получаются те же значения
-  - Обрезанный фрейм → decoder возвращает `Ok(None)` (need more bytes), не ошибку
-  - Фрейм с длиной > `MAX_FRAME_BYTES` → `ProtocolError::FrameTooLarge`
-  - Корректная длина + битый CBOR внутри → `ProtocolError::Decode`
-- [ ] Fuzz target (опционально, если время): `cargo-fuzz` на decoder — любые байты не должны паниковать
+  - Two `Message`s written to a `Vec<u8>` via `FramedWrite`, read back via `FramedRead` — same values
+  - Truncated frame → decoder returns `Ok(None)` (need more bytes), not an error
+  - Frame with length > `MAX_FRAME_BYTES` → `ProtocolError::FrameTooLarge`
+  - Correct length + broken CBOR inside → `ProtocolError::Decode`
+- [ ] Fuzz target (optional, if time permits): `cargo-fuzz` against the decoder — arbitrary bytes must not panic
 
-### Документация
+### Documentation
 
-- [ ] `crates/protocol/src/lib.rs` — `//!` module-level docs с примером:
+- [ ] `crates/protocol/src/lib.rs` — `//!` module-level docs with an example:
   ```rust
   //! # Example
   //! ```no_run
@@ -106,37 +106,37 @@
   //! let reply = conn.next().await.transpose()?;
   //! # Ok(()) }
   //! ```
-- [ ] `docs/wire-format.md` (под `specs/`? — решить при реализации) — человекочитаемое описание wire-формата для будущих реализаций в других языках
+- [ ] `docs/wire-format.md` (or under `specs/`? — decide during implementation) — human-readable wire-format description for future implementations in other languages
 
 ## Acceptance criteria
 
-- [ ] Все варианты `Message` имеют property test round-trip — 0 fail на 10k итераций
-- [ ] Snapshot-тесты: по одному canonical instance на вариант, зафиксированы в `crates/protocol/tests/snapshots/`
-- [ ] `cargo bench` (опционально, но желательно) показывает encode/decode `KeepAlive` < 1 мкс и `MouseMove` < 5 мкс на современном CPU
-- [ ] Публичное API крейта документировано: `cargo doc --no-deps` не выдаёт missing-docs warnings
-- [ ] CI проходит; crate docs попадают в будущий docs.rs без warnings
-- [ ] `cargo deny check` green
+- [ ] Every `Message` variant has a property-test round-trip — 0 fails on 10k iterations
+- [ ] Snapshot tests: one canonical instance per variant, committed under `crates/protocol/tests/snapshots/`
+- [ ] `cargo bench` (optional but desirable) shows `KeepAlive` encode/decode < 1 µs and `MouseMove` < 5 µs on a modern CPU
+- [ ] The crate's public API is documented: `cargo doc --no-deps` produces no missing-docs warnings
+- [ ] CI is green; crate docs will render on docs.rs without warnings
+- [ ] `cargo deny check` is green
 
-## Тесты
+## Tests
 
-В дополнение к списку выше:
-- [ ] Каждый `Capability` вариант сериализуется в известный snake_case string (не случайный автодетект от serde)
-- [ ] Forward-compat: сообщение с неизвестным `Capability` string внутри `Hello` — десериализуется в `Capability::Unknown`, остальной `Hello` парсится штатно
-- [ ] `DisconnectReason` с неизвестным вариантом — graceful fallback (например, `DisconnectReason::Unknown(String)`? — или `Disconnect { reason: Unknown }`; решить при реализации)
+On top of the list above:
+- [ ] Every `Capability` variant serialises to a known snake_case string (not a serde auto-detected name)
+- [ ] Forward-compat: a `Hello` whose capabilities list contains an unknown string still deserialises — the unknown slot becomes `Capability::Unknown`, the rest parses normally
+- [ ] `DisconnectReason` with an unknown variant — graceful fallback (e.g. `DisconnectReason::Unknown(String)`? — or `Disconnect { reason: Unknown }`; decide during implementation)
 
-## Риски / open questions
+## Risks / open questions
 
-1. **CBOR map encoding vs array encoding:** `ciborium` по умолчанию кодирует struct как map (имена полей в wire-формате). Плюс — forward-compat через `#[serde(skip)]`. Минус — больше байт на wire (для `MouseMove` это заметно: 2 поля × 3 байта ключ + 2 байта значение vs 4 байта `[x, y]` как array). Решение для M1: **оставить map-encoding** (читаемость wire-формата важнее нескольких байт, при 1000 событий/сек overhead < 50 KB/s). Если замеры в M3 покажут проблему — перейти на manual `serde::Serializer` с array encoding для hot-path сообщений.
-2. **Endianness length-prefix:** `LengthDelimitedCodec` default — big-endian 4 байта. Подтвердить и зафиксировать в `docs/wire-format.md`.
-3. **`#[serde(other)]` для `Capability`:** требует `#[serde(untagged)]` или `tag`-free enum? — уточнить в реализации; может потребовать `#[serde(other)] Unknown(String)` или кастомного Deserialize.
-4. **Protobuf alternative?** — отказано сознательно: CBOR не требует кодогенерации и IDL, derive-сериализация даёт тот же уровень кросс-языковости. Не пересматривать без веской причины.
-5. **Nested `Bytes` в `ClipboardData`:** `bytes::Bytes` + serde — нужна feature `serde` у `bytes`; проверить в M0 что включено.
+1. **CBOR map vs array encoding.** `ciborium` encodes structs as maps by default (field names in the wire format). Pro: forward-compat via `#[serde(skip)]`. Con: more bytes on the wire (for `MouseMove` the difference is noticeable: 2 fields × 3-byte key + 2-byte value vs 4-byte `[x, y]` as an array). Decision for M1: **keep map encoding** — readable wire format beats a few bytes; at 1000 events/s the overhead is < 50 KB/s. If benchmarks in M3 show a problem, switch to a manual `serde::Serializer` with array encoding on the hot path.
+2. **Length-prefix endianness.** `LengthDelimitedCodec` defaults to 4-byte big-endian. Confirm and document in `docs/wire-format.md`.
+3. **`#[serde(other)]` for `Capability`:** does it require `#[serde(untagged)]` or a tag-free enum? Clarify during implementation; may need `#[serde(other)] Unknown(String)` or a custom `Deserialize`.
+4. **Protobuf alternative?** Consciously rejected: CBOR needs neither codegen nor IDL; derive serialisation gives the same level of cross-language support. Don't revisit without a strong reason.
+5. **Nested `Bytes` inside `ClipboardData`:** `bytes::Bytes` + serde needs the `bytes` crate's `serde` feature. Check in M0 that it's enabled.
 
-## Готовность к M2
+## Readiness for M2
 
-После M1 у нас есть:
-- Типы и codec для любых дальнейших слоёв
-- Увереность в wire-формате через snapshot-тесты
+After M1 we have:
+- Types and codec for every subsequent layer
+- Confidence in the wire format via snapshot tests
 - Fuzz-safe decoder
 
-Это минимум, необходимый для M2 (handshake over TLS).
+That's the minimum M2 needs (handshake over TLS).

@@ -1,29 +1,29 @@
 # M11 — Server Coordinator
 
-## Цель
+## Goal
 
-Собрать центральный актор сервера, который превращает локальный ввод (на primary) и сетевые сообщения от клиентов в правильный поток `Message`-ов. Сейчас `Server::serve` делает accept + keep-alive и только. Нет пути "локальная клавиатура → клиент", нет переключения активного экрана, нет обработки clipboard-протокола. M11 закрывает этот пробел.
+Land the central server actor that turns local input (on the primary) and network messages from clients into a correct stream of `Message`s. Today `Server::serve` does accept + keep-alive only — there is no "local keyboard → client" path, no active-screen switching, no clipboard-protocol handling. M11 closes that gap.
 
 ## Scope
 
-**В области:**
-- Структура `Coordinator` — pure state-machine, owning screen layout, активный экран, курсор, удерживаемые клавиши/кнопки/модификаторы, clipboard-grab-state, registry of connected clients.
-- Edge-crossing механика (rect-based virtual layout) с корректным освобождением/повторным нажатием модификаторов.
-- Маршрутизация `InputEvent` от локального `PlatformScreen::event_stream()` в нужный `ClientProxy`.
-- Приём входящих `Message`-ов от клиентов (`CoordinatorEvent::PeerMessage`) и их обработка (clipboard protocol, disconnect).
-- Интеграция с существующими `Server::serve` / `ClientProxy` через channels.
-- Shutdown propagation: `CancellationToken` → все клиентские таски.
+**In scope:**
+- The `Coordinator` struct — a pure state machine owning the screen layout, the active screen, the cursor, held keys/buttons/modifiers, clipboard-grab state, and a registry of connected clients.
+- Edge-crossing mechanics (rect-based virtual layout) with correct release/re-press of modifiers.
+- Routing `InputEvent`s from the local `PlatformScreen::event_stream()` to the right `ClientProxy`.
+- Receiving inbound `Message`s from clients (`CoordinatorEvent::PeerMessage`) and handling them (clipboard protocol, disconnect).
+- Integrating with the existing `Server::serve` / `ClientProxy` via channels.
+- Shutdown propagation: `CancellationToken` → every client task.
 
 **Out of scope:**
-- Lazy-clipboard (платформа отдаёт данные по требованию при Ctrl+V на локальной стороне). Требует нового API в `PlatformScreen`, делается в M11.1.
-- Сценарий "Ctrl+V на primary после того как secondary захватил буфер". Работает только при наличии lazy-clipboard. Пока documented limitation.
-- Drag-across-edge (когда мышь тянет кнопку и пересекает границу). Mouse crossing блокируется пока зажата хоть одна кнопка — стандартная Barrier/Synergy семантика.
-- GUI reload_config: `arc_swap` выбран именно ради будущего swap, но сам механизм reload — отдельный PR.
-- File-clipboard (M9) через Coordinator: transfer engine уже есть; маршрутизация `FileTransferStart/Chunk/End/Cancel` через Coordinator — тривиальный add-on, но в этом milestone не оформляется отдельной фичей.
+- Lazy clipboard (platform hands data out on demand at Ctrl+V on the local side). Requires a new `PlatformScreen` API, scheduled for M11.1.
+- The "Ctrl+V on primary after a secondary grabbed the buffer" scenario. Works only with lazy clipboard. Documented limitation for now.
+- Drag-across-edge (the mouse dragging a button while crossing). Mouse crossing is blocked while any button is held — standard Barrier/Synergy semantics.
+- GUI `reload_config`: `arc_swap` is chosen exactly to enable a future swap, but the reload mechanism itself is a separate PR.
+- File-clipboard (M9) through the Coordinator: the transfer engine already exists; routing `FileTransferStart/Chunk/End/Cancel` through the Coordinator is a trivial add-on, not claimed as a feature of this milestone.
 
-## Архитектура
+## Architecture
 
-### Компонентная диаграмма
+### Component diagram
 
 ```
 ┌──────────────────┐        InputEvent           ┌───────────────────┐
@@ -52,7 +52,7 @@
                         laptop peer                 desktop peer
 ```
 
-### Слои и файлы
+### Layers and files
 
 ```
 crates/server/src/
@@ -71,7 +71,7 @@ crates/server/src/
 
 ### ScreenLayout (rect-based)
 
-Каждый экран — прямоугольник в виртуальном координатном пространстве. Курсор живёт в глобальных координатах; active-screen определяется тем, в какой rect он попал.
+Every screen is a rectangle in a virtual coordinate space. The cursor lives in global coordinates; the active screen is whichever rect currently contains it.
 
 ```rust
 pub struct ScreenLayout {
@@ -92,7 +92,7 @@ pub struct ScreenEntry {
 pub type ScreenName = String;  // matches display_name from Hello
 ```
 
-Пример конфига (TOML в будущем; структура фиксируется сейчас):
+Example config (TOML in the future; the struct is fixed now):
 ```toml
 primary = "desk"
 
@@ -118,20 +118,20 @@ width = 2560
 height = 1440
 ```
 
-Query: `layout.screen_at(vx, vy) -> Option<&ScreenEntry>` — O(n), где n — число экранов (обычно ≤ 5).
+Query: `layout.screen_at(vx, vy) -> Option<&ScreenEntry>` — O(n), where n is the number of screens (usually ≤ 5).
 
-**Решения по развилке:**
-- Layout в `Arc<ArcSwap<ScreenLayout>>`. Coordinator загружает snapshot один раз за `on_input`-итерацию через `.load()`. Lock-free read path.
+**Fork decision:**
+- Layout is held in `Arc<ArcSwap<ScreenLayout>>`. The Coordinator loads a snapshot once per `on_input` iteration via `.load()`. Lock-free read path.
 
-### LayoutStore + где хранится layout на диске
+### LayoutStore and where layout lives on disk
 
-Layout живёт в **отдельном файле** `layout.toml`, не внутри основного `config.toml`. Причины:
+Layout lives in a **separate file** `layout.toml`, not inside the main `config.toml`. Reasons:
 
-1. **Разные владельцы:** `config.toml` — admin-level (`listen_addr`, `cert_dir`), редко редактируется; `layout.toml` — user-level, редактируется GUI каждый раз когда пользователь перестраивает мониторы. Отдельные файлы → GUI может делать atomic write (`tempfile` + rename) без риска снести admin-настройки и комментарии.
-2. **Precedent:** `FingerprintDb` уже в своём файле (`fingerprints.toml`); архитектурно мы уже выбрали "то, что часто меняется извне — в отдельном файле".
-3. **Живой reload:** `ArcSwap` выбран именно ради hot-swap. Отдельный файл позволяет reload'у не тянуть за собой figment-слои (env, CLI), которые к layout не относятся.
+1. **Different owners.** `config.toml` is admin-level (`listen_addr`, `cert_dir`), rarely edited; `layout.toml` is user-level, rewritten by the GUI every time the user rearranges monitors. Separate files → the GUI can do atomic writes (`tempfile` + rename) without clobbering admin settings and comments.
+2. **Precedent.** `FingerprintDb` already lives in its own file (`fingerprints.toml`); architecturally we've already chosen "what changes often from outside — in a separate file".
+3. **Live reload.** `ArcSwap` was picked for hot-swap. A separate file lets the reload path avoid dragging the figment layers (env, CLI) that don't concern layout.
 
-**Структура:**
+**Structure:**
 
 ```toml
 # ~/.config/hop/config.toml
@@ -168,13 +168,13 @@ width    = 1440
 height   = 900
 ```
 
-**Только `ServerSettings` получает `LayoutSettings { path: PathBuf }`.** Клиент layout не читает — у него всегда один экран.
+**Only `ServerSettings` gains `LayoutSettings { path: PathBuf }`.** The client never reads a layout — it only ever has one screen.
 
-**Default path:** `<project_config_dir>/layout.toml` через `directories::ProjectDirs` — рядом с `config.toml`.
+**Default path:** `<project_config_dir>/layout.toml` via `directories::ProjectDirs` — next to `config.toml`.
 
-**Отсутствие файла:** `tracing::warn!("layout file not found at {}; add at least one client screen to route input", path)` + пустой layout (только primary). Сервер стартует в degraded mode (никуда не роутит), но не падает — важно для first-run UX, когда пользователь ещё не настроил layout.
+**Missing file:** `tracing::warn!("layout file not found at {}; add at least one client screen to route input", path)` + empty layout (primary only). The server starts in degraded mode (routes nothing) but does not crash — important for first-run UX, when the user hasn't configured the layout yet.
 
-**`LayoutStore` — тонкая обёртка:**
+**`LayoutStore` — a thin wrapper:**
 
 ```rust
 pub struct LayoutStore {
@@ -193,7 +193,7 @@ impl LayoutStore {
 }
 ```
 
-GUI дёргает `reload_layout` через IPC (новый метод в `IpcHandler`, добавляется в M11 wire-up) → сервер вызывает `store.reload()` → `Coordinator` следующим `on_event` видит новый layout.
+The GUI calls `reload_layout` via IPC (a new `IpcHandler` method, added during M11 wire-up) → the server calls `store.reload()` → the `Coordinator` sees the new layout on its next `on_event`.
 
 ### HeldState
 
@@ -223,13 +223,13 @@ impl HeldState {
 }
 ```
 
-**Решения по развилке 3 (где живёт held-state):** внутри `Coordinator` на основе потока `InputEvent`. Платформенный слой отдаёт сырые KeyDown/KeyUp/MouseButton; Coordinator агрегирует. Это позволяет Coordinator'у корректно "размотать" состояние при переходе.
+**Fork decision 3 (where held-state lives):** inside the `Coordinator`, driven by the `InputEvent` stream. The platform layer emits raw KeyDown/KeyUp/MouseButton; the Coordinator aggregates. This lets the Coordinator correctly "unwind" the state on a transition.
 
-**Решения по re-press policy:**
-- На `leave_messages()`: отдаём `KeyUp` для каждого элемента в `keys` и `ButtonUp` (через `MouseButton { down: false }`) для каждого в `buttons`. Потом modifiers зануляются через отдельные `KeyUp`-события для каждого флага в `mods`.
-- На `enter_messages()`: отдаём `KeyDown` **только** для модификаторов из `mods`. Не-модификаторные клавиши и кнопки **не** переносятся (редкий случай, безопаснее отпустить и забыть).
+**Re-press policy:**
+- On `leave_messages()`: emit `KeyUp` for every element of `keys`, and `ButtonUp` (as `MouseButton { down: false }`) for every element of `buttons`. Then zero the modifiers by emitting a separate `KeyUp` per flag in `mods`.
+- On `enter_messages()`: emit `KeyDown` **only** for modifiers in `mods`. Non-modifier keys and buttons are **not** carried over (rare case, safer to release and forget).
 
-**Решения по drag-across-edge:** если `any_button_held() == true`, то `Coordinator::on_input(MouseMove)` **не выполняет пересечение границы**; курсор клампится к текущему экрану до тех пор, пока все кнопки не отпущены. Match Barrier/Synergy behavior.
+**Drag-across-edge:** if `any_button_held() == true`, then `Coordinator::on_input(MouseMove)` **does not cross** a boundary; the cursor is clamped to the current screen until all buttons are released. Matches Barrier/Synergy behaviour.
 
 ### ClipboardGrabState
 
@@ -255,7 +255,7 @@ impl ClipboardGrabState {
 }
 ```
 
-Coordinator держит один экземпляр; модуль тестируется отдельно.
+The Coordinator owns a single instance; the module is tested independently.
 
 ### Coordinator
 
@@ -313,62 +313,62 @@ impl Coordinator {
 }
 ```
 
-**Решения по развилке 5 (pure vs side-effectful):** pure + `Vec<Output>`. Caller reuses one `Vec<CoordinatorOutput>` buffer across calls. Tests feed events, assert outputs — no tokio runtime needed for 95% of the test matrix.
+**Fork decision 5 (pure vs side-effectful):** pure + `Vec<Output>`. Callers reuse one `Vec<CoordinatorOutput>` buffer across calls. Tests feed events and assert on outputs — no tokio runtime needed for 95% of the matrix.
 
-## Ключевые инварианты + порядок операций
+## Key invariants + operation order
 
-### При MouseMove от локального event_stream
+### On a MouseMove from the local event stream
 
-Последовательность внутри Coordinator:
-1. Обновить `cursor += (dx, dy)` (для RelMove) или `cursor = (x, y)` (для абсолютного).
+Sequence inside the Coordinator:
+1. Update `cursor += (dx, dy)` (for RelMove) or `cursor = (x, y)` (for absolute).
 2. `if self.held.any_button_held() { clamp cursor to current active screen rect; emit forward-as-usual; return; }`
-3. `layout.screen_at(cursor)` — найти в каком экране сейчас.
-4. Если это то же что `self.active` → просто форвардим MouseMove в соответствующий поток (локально injected или сеть).
-5. Если другой экран → **атомарная транзакция пересечения**:
-   - `for msg in held.leave_messages()` → `Send` to old active (если remote) / `InjectLocal` (если primary).
-   - `Send ScreenLeave` to old active (если remote).
+3. `layout.screen_at(cursor)` — find which screen we're on now.
+4. If it's the same as `self.active` → just forward MouseMove to the matching sink (local inject or network).
+5. If different → **atomic crossing transaction**:
+   - `for msg in held.leave_messages()` → `Send` to the old active (if remote) / `InjectLocal` (if primary).
+   - `Send ScreenLeave` to the old active (if remote).
    - `self.active = new_name`
-   - `self.seq += 1` (глобальный seq для ScreenEnter)
-   - `Send ScreenEnter { x, y, seq, mask = self.held.mods }` to new active (если remote).
-   - `for msg in held.enter_messages()` → `Send` to new active.
-6. После transition — пропускаем оригинальный MouseMove в новый active (с локальными координатами внутри target screen).
+   - `self.seq += 1` (global seq for ScreenEnter)
+   - `Send ScreenEnter { x, y, seq, mask = self.held.mods }` to the new active (if remote).
+   - `for msg in held.enter_messages()` → `Send` to the new active.
+6. After the transition — forward the original MouseMove to the new active (in local coordinates inside the target screen).
 
-### При Key/Button events
+### On Key/Button events
 
-1. `self.held.apply(event)` — обновить множества.
-2. Если `active == local_primary` — `InjectLocal` (noop для сервера, событие уже произошло локально). По сути: не нужно ничего делать, пользователь видит результат локально.
-3. Если `active` — remote client — `Send { to: active, msg: Message::Key/Button(...) }`.
+1. `self.held.apply(event)` — update sets.
+2. If `active == local_primary` — `InjectLocal` (noop on the server; the OS already handled it locally). Effectively nothing to do.
+3. If `active` is a remote client — `Send { to: active, msg: Message::Key/Button(...) }`.
 
-### При ClipboardGrab от клиента
+### On ClipboardGrab from a client
 
 `Coordinator::on_event(PeerMessage { from, ClipboardGrab { id, seq }})`:
-1. `self.grabs.on_grab(from, id, seq)` — если `seq < current_seq`, игнорируем (stale).
-2. Broadcast `ClipboardGrab { id, seq }` всем клиентам **кроме** `from`.
-3. Нет платформенных действий (lazy-clipboard — out of scope).
+1. `self.grabs.on_grab(from, id, seq)` — if `seq < current_seq`, drop (stale).
+2. Broadcast `ClipboardGrab { id, seq }` to every client **except** `from`.
+3. No platform actions (lazy-clipboard — out of scope).
 
-### При ClipboardRequest от клиента
+### On ClipboardRequest from a client
 
 `Coordinator::on_event(PeerMessage { from, ClipboardRequest { id, seq }})`:
-1. Look up owner. Если это primary — платформа через отдельный путь (см. "Локальный path к платформе" ниже). Пока что: `Warn("clipboard request for primary not supported yet")`.
-2. Если это другой client — `Send { to: owner, msg: ClipboardRequest { id, seq }}`.
+1. Look up the owner. If it's the primary — platform via a separate path (see "Local path to the platform" below). For now: `Warn("clipboard request for primary not supported yet")`.
+2. If another client — `Send { to: owner, msg: ClipboardRequest { id, seq }}`.
 
-### При ClipboardData от клиента
+### On ClipboardData from a client
 
 `Coordinator::on_event(PeerMessage { from, ClipboardData { id, format, data }})`:
-1. Если у нас есть outstanding request для этого `(id, seq)` — forward `ClipboardData` к requester.
-2. Иначе warn + drop.
+1. If there's an outstanding request for this `(id, seq)` — forward `ClipboardData` to the requester.
+2. Otherwise warn + drop.
 
-### При ClientConnected / ClientDisconnected
+### On ClientConnected / ClientDisconnected
 
 Connected:
-1. Если `name` есть в `layout` → `clients.insert(name, handle)`.
-2. Иначе → `orphans.insert(name, handle)` + `Warn("client 'X' connected but not in layout; inputs won't be routed to it")`.
-3. Bootstrap: `Send ScreenEnter` with seq=0 если этот клиент сразу становится активным (редко; обычно primary стартует активным).
+1. If `name` is in the `layout` → `clients.insert(name, handle)`.
+2. Otherwise → `orphans.insert(name, handle)` + `Warn("client 'X' connected but not in layout; inputs won't be routed to it")`.
+3. Bootstrap: `Send ScreenEnter` with `seq=0` if this client becomes active immediately (rare; normally the primary starts active).
 
 Disconnected:
 1. `clients.remove(name)` / `orphans.remove(name)`.
-2. Если `active == name` → switch `active` back to `primary`, `self.seq += 1`, и emit `held.enter_messages()` как локальную инжекцию (технически noop, но seq-bump корректен для будущих clipboard-grab'ов).
-3. Если `name` был owner какого-либо clipboard → очистить соответствующие `grabs.owner.remove(...)`.
+2. If `active == name` → switch `active` back to the primary, `self.seq += 1`, and emit `held.enter_messages()` as a local inject (technically a noop, but the seq-bump is correct for any in-flight clipboard grabs).
+3. If `name` was the owner of any clipboard → clear the matching `grabs.owner.remove(...)`.
 
 ## ClientProxy
 
@@ -386,7 +386,7 @@ impl ClientProxy {
 }
 ```
 
-Цикл:
+Loop:
 ```rust
 loop {
     select! {
@@ -428,76 +428,76 @@ loop {
 inbound_tx.send(CoordinatorEvent::ClientDisconnected { name }).await.ok();
 ```
 
-**Решение по развилке 4 (backpressure на outbound):**
+**Fork decision 4 (outbound backpressure):**
 - `mpsc::channel(1024)` bounded.
-- `Coordinator` в `task.rs` использует `tx.try_send(msg)`:
-  - `Ok(())` — штатно.
-  - `Err(TrySendError::Full(_))` — медленный клиент → закрываем connection: посылаем `ClientDisconnected` через loopback канал, Coordinator удаляет клиента, прокси-task ловит это через падение outbound канала и завершается. `Warn("client X dropped due to outbound backpressure")`.
-  - `Err(TrySendError::Closed(_))` — прокси уже ушёл, тихо удаляем из `clients`.
+- The `Coordinator` in `task.rs` uses `tx.try_send(msg)`:
+  - `Ok(())` — normal.
+  - `Err(TrySendError::Full(_))` — slow client → close the connection: send `ClientDisconnected` over a loopback channel; the Coordinator drops the client; the proxy task notices the outbound channel closing and exits. `Warn("client X dropped due to outbound backpressure")`.
+  - `Err(TrySendError::Closed(_))` — the proxy is already gone, silently drop from `clients`.
 
-## Локальный path к платформе
+## Local path to the platform
 
-`Coordinator` не вызывает `PlatformScreen` напрямую (иначе становится неприемлемо сложно тестировать). Вместо этого `task.rs`, который гоняет Coordinator, имеет **второй outbound канал** `mpsc<Message>` → `PlatformDispatcher` задача. Эта задача:
-- Берёт `Message::Key/Mouse/Clipboard*` → вызывает `screen.inject_key(...)` / `screen.set_clipboard(...)`.
-- Для primary-side `InjectLocal` — это именно то, что происходит когда `active == local`, но обычно локально не нужно (OS уже обработала). Полезно для clipboard set'а (когда хотим записать данные в локальный буфер при входящем ClipboardData от другого peer'а).
+The `Coordinator` does not call `PlatformScreen` directly (that would make it unreasonably hard to test). Instead, the `task.rs` that drives the Coordinator has a **second outbound channel** `mpsc<Message>` → a `PlatformDispatcher` task. That task:
+- Takes `Message::Key/Mouse/Clipboard*` → calls `screen.inject_key(...)` / `screen.set_clipboard(...)`.
+- For primary-side `InjectLocal` — it's what happens when `active == local`, but is normally unnecessary (the OS already handled it). Useful for clipboard writes (when we want to put data into the local buffer on an incoming `ClipboardData` from another peer).
 
 ## Shutdown propagation
 
 ```
 CancellationToken (SIGINT)
     ├─▶ Server::serve loop exits
-    ├─▶ Coordinator task: drains its inbound channel, does last `on_event(ClientDisconnected)` for every remaining client, sends CoordinatorEvent::Shutdown internally which makes task exit.
-    ├─▶ Each ClientProxy: biased select catches cancelled() first, sends Disconnect to peer, closes.
+    ├─▶ Coordinator task: drains its inbound channel, does a final `on_event(ClientDisconnected)` for every remaining client, sends CoordinatorEvent::Shutdown internally so the task exits.
+    ├─▶ Each ClientProxy: a biased select catches cancelled() first, sends Disconnect to the peer, closes.
     └─▶ PlatformDispatcher: drains, exits.
 ```
 
-`JoinSet` на всех ClientProxy + на Coordinator task + на PlatformDispatcher, awaited в `Server::serve` epilogue.
+A `JoinSet` covers every ClientProxy + the Coordinator task + the PlatformDispatcher; it's awaited in the `Server::serve` epilogue.
 
-## Порядок имплементации
+## Implementation order
 
-1. ✅ **`coordinator/layout.rs`** (commit `54d7f6b`) — `ScreenLayout`, `ScreenEntry`, `screen_at()`, `clamp()`, `LayoutStore` c `ArcSwap` + live reload. 11 unit-тестов.
+1. ✅ **`coordinator/layout.rs`** (commit `54d7f6b`) — `ScreenLayout`, `ScreenEntry`, `screen_at()`, `clamp()`, `LayoutStore` with `ArcSwap` + live reload. 11 unit tests.
 
-2. ✅ **`coordinator/held.rs`** (commit `54d7f6b`) — `HeldState::{apply, leave_messages, enter_messages, any_button_held}`. 10 unit-тестов (Shift replay, drag block, modifier fixed-order).
+2. ✅ **`coordinator/held.rs`** (commit `54d7f6b`) — `HeldState::{apply, leave_messages, enter_messages, any_button_held}`. 10 unit tests (Shift replay, drag block, modifier fixed-order).
 
-3. ✅ **`coordinator/clipboard.rs`** (commit `54d7f6b`) — `ClipboardGrabState` с seq-based stale-detection. 6 unit-тестов.
+3. ✅ **`coordinator/clipboard.rs`** (commit `54d7f6b`) — `ClipboardGrabState` with seq-based stale detection. 6 unit tests.
 
-4. ✅ **`coordinator/state.rs`** (commit `63c0b0b`) — `Coordinator`, `CoordinatorEvent`, `CoordinatorOutput`. Pure state-machine. 11 unit-тестов (crossing, drag-block, orphan, active-disconnect, clipboard broadcast/request/stale).
+4. ✅ **`coordinator/state.rs`** (commit `63c0b0b`) — `Coordinator`, `CoordinatorEvent`, `CoordinatorOutput`. Pure state machine. 11 unit tests (crossing, drag-block, orphan, active-disconnect, clipboard broadcast/request/stale).
 
-5. ✅ **`coordinator/proxy.rs`** — `ClientProxy` с outbound mpsc + keep-alive + inbound forward. 5 интеграционных тестов на `tokio::io::duplex` (PeerMessage forwarding, outbound writes, keep-alive filter, peer-disconnect, coordinator-drop).
+5. ✅ **`coordinator/proxy.rs`** — `ClientProxy` with outbound mpsc + keep-alive + inbound forward. 5 integration tests on `tokio::io::duplex` (PeerMessage forwarding, outbound writes, keep-alive filter, peer-disconnect, coordinator-drop).
 
-6. ✅ **`coordinator/task.rs`** — tokio driver task + platform dispatcher. `try_send` backpressure drop-on-full. 3 unit-теста (crossing emits ScreenEnter, backpressure tolerance, InjectLocal reaches dispatcher).
+6. ✅ **`coordinator/task.rs`** — tokio driver task + platform dispatcher. `try_send` backpressure drop-on-full. 3 unit tests (crossing emits ScreenEnter, backpressure tolerance, InjectLocal reaches the dispatcher).
 
-7. ✅ **`Server::serve`** — переписан в `crates/server/src/lib.rs`: `spawn_coordinator` + input-stream forwarder + per-peer `ClientProxy`. `ServerConfig` получил обязательное поле `layout: SharedLayout`; binary (`bins/hops/src/main.rs`) пока подставляет `ScreenLayout::single_primary(display_name)` до появления loader'а `layout.toml`.
+7. ✅ **`Server::serve`** — rewritten in `crates/server/src/lib.rs`: `spawn_coordinator` + input-stream forwarder + per-peer `ClientProxy`. `ServerConfig` gains a required `layout: SharedLayout` field; the binary (`bins/hops/src/main.rs`) temporarily substitutes `ScreenLayout::single_primary(display_name)` until the `layout.toml` loader lands.
 
-8. ✅ **E2E test:** `crates/server/tests/coordinator_e2e.rs` — 3-screen layout, два mock-клиента, MouseMove через desk → monitor → laptop. Ассертим что monitor получает ScreenEnter + MouseMove + ScreenLeave, laptop получает ScreenEnter без ScreenLeave.
+8. ✅ **E2E test:** `crates/server/tests/coordinator_e2e.rs` — 3-screen layout, two mock clients, MouseMove walking desk → monitor → laptop. We assert that monitor receives ScreenEnter + MouseMove + ScreenLeave, while laptop receives ScreenEnter without ScreenLeave.
 
-**Текущий статус:** все 8 шагов готовы. 49 server-тестов + 1 handshake E2E + 1 coordinator E2E, clippy clean.
+**Current status:** all 8 steps are done. 49 server tests + 1 handshake E2E + 1 coordinator E2E, clippy clean.
 
-## Тестовый план
+## Test plan
 
-| Уровень | Что | Чем |
+| Level | What | With |
 |---|---|---|
-| Unit | ScreenLayout: `screen_at`, rect-arithmetic | `proptest` — random rects, random points |
-| Unit | HeldState leave/enter symmetry | `rstest` — параметризованные зажатия |
-| Unit | ClipboardGrabState state machine | ручные unit-тесты |
-| Unit | Coordinator::on_event — вся матрица событий | ручные unit-тесты, по одной на сценарий |
-| Integration | ClientProxy inbound/outbound через mock TCP | `tokio::net::duplex` |
-| E2E | Server с двумя mock-клиентами + симулированным event_stream | через `MockScreen` + `Server::bind/serve` |
+| Unit | ScreenLayout: `screen_at`, rect arithmetic | `proptest` — random rects, random points |
+| Unit | HeldState leave/enter symmetry | `rstest` — parameterised presses |
+| Unit | ClipboardGrabState state machine | hand-written unit tests |
+| Unit | `Coordinator::on_event` — full event matrix | hand-written, one per scenario |
+| Integration | ClientProxy inbound/outbound over mock TCP | `tokio::net::duplex` |
+| E2E | Server with two mock clients + a simulated event_stream | `MockScreen` + `Server::bind/serve` |
 
-Планируемое покрытие: ≥ 85% для `coordinator/` модуля (чистый логический код). ClientProxy `tokio`-зависим, ~70% достаточно.
+Planned coverage: ≥ 85% for the `coordinator/` module (pure logic code). ClientProxy is `tokio`-dependent, ~70% is enough.
 
-## Оценка и риски
+## Estimate and risks
 
-- **Разработка:** ~3 дня. Из них ~1 день на layout + held + clipboard модули, ~1 день на Coordinator + tests, ~1 день на task.rs + ClientProxy + E2E.
-- **Риски:**
-  - Edge-crossing математика легко получает off-by-one в граничных точках (курсор ровно на границе, выход за угол экрана). Покроем property-тестами.
-  - Backpressure drop-on-full может оказаться слишком агрессивным на slow networks. Если в E2E будут flaky тесты — переключимся на bounded(8192) для буферизации коротких всплесков.
-  - Lazy-clipboard defer'ится — это значит Ctrl+V на primary после remote grab не работает. Документировать в README.
+- **Development:** ~3 days. Roughly 1 day for layout + held + clipboard modules, 1 day for the Coordinator + tests, 1 day for `task.rs` + ClientProxy + E2E.
+- **Risks:**
+  - Edge-crossing arithmetic easily picks up off-by-ones at boundary points (cursor exactly on an edge, leaving via a corner). Covered by property tests.
+  - Backpressure drop-on-full may be too aggressive on slow networks. If E2E tests become flaky, switch to bounded(8192) to buffer short spikes.
+  - Lazy clipboard is deferred — which means Ctrl+V on the primary after a remote grab doesn't work. Document in the README.
 
 ## Resolved / deferred decisions
 
-1. ~~**Layout storage.**~~ **Resolved:** отдельный `layout.toml`, путь конфигурируется через `ServerSettings.layout.path`. Причины — в разделе "LayoutStore + где хранится layout на диске" выше.
+1. ~~**Layout storage.**~~ **Resolved:** separate `layout.toml`, path configured via `ServerSettings.layout.path`. Reasons are in the "LayoutStore and where layout lives on disk" section above.
 
-2. **Scale-factor inter-screen:** DPI 100% на laptop vs 150% на desk. При пересечении границы y-координата должна масштабироваться? Текущий rect-based layout работает в физических пикселях. **Deferred:** heterogeneous-DPI проигнорировать до появления второго реального клиента; тогда добавим `logical_height` / трансформацию координат. На момент M11 работаем в физических пикселях всех экранов.
+2. **Inter-screen scale-factor:** DPI 100% on laptop vs 150% on desk. Should the y-coordinate scale on a crossing? The current rect-based layout operates in physical pixels. **Deferred:** ignore heterogeneous DPI until a second real client shows up; then add `logical_height` / coordinate transforms. For M11 we operate in physical pixels across all screens.
 
-3. ~~**Broadcast vs per-client seq.**~~ **Resolved:** один **глобальный** `self.seq` на весь Coordinator. Альтернатива per-client seq рассматривалась — отклонена, потому что переключение активного экрана — event, относящийся ко всем клиентам сразу (clipboard grab в момент cross должен иметь один seq, видимый одинаково для каждого peer'а). Менять не планируется.
+3. ~~**Broadcast vs per-client seq.**~~ **Resolved:** a single **global** `self.seq` for the whole Coordinator. The per-client seq alternative was considered — rejected because the active-screen switch is an event that concerns every client at once (a clipboard grab during a cross must have one seq, visible identically to every peer). Not planned to change.
