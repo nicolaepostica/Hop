@@ -15,6 +15,7 @@ The current implementation is C++14. It uses a hand-rolled `EventQueue`, a polli
 ## Scope
 
 **In scope:**
+
 - `hops` (server) and `hopc` (client) in Rust
 - A new v1 wire protocol on CBOR (RFC 8949) + length-delimited framing
 - TLS via `rustls` + self-signed cert with fingerprint verification
@@ -25,6 +26,7 @@ The current implementation is C++14. It uses a hand-rolled `EventQueue`, a polli
 - Tests: unit (`proptest` round-trip) + integration (network, IPC, platforms)
 
 **Out of scope for the first iteration:**
+
 - The Qt GUI is replaced with a new egui binary called `hop`
 - Drag & drop — post-MVP
 - Windows service (`hopd`) — a thin wrapper via the `windows-service` crate in M10, not a separate codebase
@@ -45,7 +47,7 @@ The current implementation is C++14. It uses a hand-rolled `EventQueue`, a polli
 
 ## User / system flow
 
-```
+```block
 [Primary machine]                            [Secondary machine]
 PlatformScreen (X11/macOS/Win/EI)            PlatformScreen (X11/macOS/Win/EI)
         |                                            |
@@ -59,6 +61,7 @@ PlatformScreen (X11/macOS/Win/EI)            PlatformScreen (X11/macOS/Win/EI)
 ```
 
 **Handshake (v1):**
+
 1. Server listens on `0.0.0.0:24800`.
 2. Client connects, TLS handshake (`tokio-rustls`). The server verifies the client's fingerprint against the local DB.
 3. Exchange `Hello` messages (CBOR) with `protocol_version: u16`, `display_name: String`, `capabilities: Vec<Capability>`.
@@ -69,7 +72,7 @@ PlatformScreen (X11/macOS/Win/EI)            PlatformScreen (X11/macOS/Win/EI)
 
 ### Workspace layout (Cargo workspace)
 
-```
+```block
 hop/
   Cargo.toml                   # [workspace] + [workspace.dependencies]
   rust-toolchain.toml          # pinned MSRV (stable, >= 1.75 for AFIT)
@@ -105,6 +108,7 @@ hop/
 **Async runtime:** `tokio` multi-thread. Platform events (X11 / libei fd) are read in a dedicated `tokio::task` via `tokio::io::unix::AsyncFd`; events flow into an `mpsc` channel. The server/client core is a `tokio::select!` loop over channels and network I/O.
 
 **Protocol (`protocol` crate):**
+
 - Framing: `tokio_util::codec::LengthDelimitedCodec`, 4-byte BE length prefix, `max_frame_length = 16 MiB`.
 - Serialisation: CBOR via `ciborium` (RFC 8949, cross-language friendly).
 - Messages: `enum Message` with `#[serde(tag = "type")]`:
@@ -200,6 +204,7 @@ Where `dyn PlatformScreen` is needed (e.g. runtime backend selection), we use a 
 **Server routing:** `tokio::sync::mpsc` between tasks: `PlatformReader` → `Coordinator` → `ClientProxy` (one per client). Screen layout — `Arc<arc_swap::ArcSwap<ScreenLayout>>` for a lock-free hot-path read. Details: `specs/milestones/M11-coordinator.md`.
 
 **IPC (`ipc` crate):** `interprocess::local_socket` for Unix-domain / Named pipes. Paths:
+
 - Linux: `$XDG_RUNTIME_DIR/hop/daemon.sock`
 - macOS: `$TMPDIR/hop/daemon.sock`
 - Windows: `\\.\pipe\hop-daemon`
@@ -207,6 +212,7 @@ Where `dyn PlatformScreen` is needed (e.g. runtime backend selection), we use a 
 Protocol — newline-delimited JSON in JSON-RPC 2.0 style (`{ "id", "method", "params" }` + notifications without `id`). Methods: `get_status`, `reload_config`, `add_peer_fingerprint`, `subscribe_logs`, ...
 
 **Config (`config` crate):** `figment` layers:
+
 1. Defaults (hard-coded in the crate)
 2. `<config_dir>/config.toml`
 3. `HOP_*` env vars
@@ -215,6 +221,7 @@ Protocol — newline-delimited JSON in JSON-RPC 2.0 style (`{ "id", "method", "p
 Typed structs, validation via `TryFrom<RawConfig, Error = ConfigError>`.
 
 **Logging:** `tracing` + `tracing-subscriber` with:
+
 - `fmt` layer → stderr (human / JSON controlled by env var)
 - `ipc` layer → serialises events into the IPC channel for the GUI
 
@@ -248,6 +255,7 @@ Extends the shared clipboard so that copying files/folders in a file manager (Ct
 ### Background: platform formats
 
 At the OS level, files in a clipboard look like:
+
 - **Windows:** `CF_HDROP` — a path list + a `DROPFILES` struct.
 - **Linux/X11:** MIME type `text/uri-list` — `file:///path\r\n`-delimited list of URIs.
 - **macOS:** `NSFilenamesPboardType` / `public.file-url` — array of paths on the pasteboard.
@@ -256,6 +264,7 @@ At the OS level, files in a clipboard look like:
 ### Scope
 
 **In scope:**
+
 - Capability `Capability::FileClipboard` in the handshake.
 - A `ClipboardFormat::Files` format with typed contents.
 - Detecting a file clipboard on each platform and reading the list of paths/URIs.
@@ -265,6 +274,7 @@ At the OS level, files in a clipboard look like:
 - Support for Windows, macOS, Linux/X11, Linux/Wayland.
 
 **Out of scope:**
+
 - Drag & drop (separate feature, post-MVP).
 - Real-time sync of file changes.
 - Name-conflict dialog (v1: auto-suffix `_1`, `_2`).
@@ -286,7 +296,7 @@ At the OS level, files in a clipboard look like:
 
 ### Flow
 
-```
+```block
 [Machine A]                                 [Machine B]
 
 1. User presses Ctrl+C on files
@@ -364,12 +374,14 @@ Both sides advertise `Capability::FileClipboard` in `HelloPayload::capabilities`
 ### Implementation (`transfer` crate)
 
 **Sender** — `TransferSender` task:
+
 - Walks the tree recursively via `tokio::fs::read_dir`.
 - Builds a `FileManifest`, checks `total_bytes <= max_transfer_bytes`.
 - Reads files chunk-wise via `tokio::fs::File::read_buf`.
 - Sends `FileChunk` frames, honouring backpressure from the `net` crate (bounded `mpsc`).
 
 **Receiver** — `TransferReceiver` task:
+
 - Creates `<drop_dir>/<transfer_id>/` as a staging directory.
 - Writes every file as `<rel_path>.part`.
 - On `FileTransferEnd` — atomic `tokio::fs::rename` into `<drop_dir>/<manifest_root_name>/`.
@@ -377,6 +389,7 @@ Both sides advertise `Capability::FileClipboard` in `HelloPayload::capabilities`
 - Injects a URI list into the OS clipboard via `write_file_clipboard`.
 
 **Cancellation:**
+
 - Either side sends `FileTransferCancel`.
 - A `Drop` guard on the staging directory removes every `.part` file if the task dies.
 

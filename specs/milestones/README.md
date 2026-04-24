@@ -30,7 +30,7 @@ Main spec: [`../architecture.md`](../architecture.md).
 
 ## Milestone dependencies
 
-```
+```block
 M0 ─► M1 ─► M2 ─┬─► M3 (x11) ─┬─► M4 (clipboard + config)
                 │              │         │
                 ├─► M6 (ei)    │         └─► M5 (ipc + GUI)
@@ -43,6 +43,7 @@ M0 ─► M1 ─► M2 ─┬─► M3 (x11) ─┬─► M4 (clipboard + config
 ## Sub-spec format
 
 Every milestone spec contains:
+
 - **Goal** — why this milestone exists
 - **Prerequisites** — which milestones must be finished first
 - **Scope** — what's in / what's out

@@ -4,7 +4,7 @@
 
 Before pushing, run:
 
-```
+```bash
 cargo xtask ci
 ```
 
@@ -14,7 +14,7 @@ to `cargo test`), and `cargo-deny` if installed.
 
 Install optional tools:
 
-```
+```bash
 cargo install cargo-nextest cargo-deny
 ```
 

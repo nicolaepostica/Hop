@@ -22,6 +22,7 @@ cmake --build build --parallel --target install
 ```
 
 Key CMake options:
+
 - `-DINPUTLEAP_BUILD_GUI=OFF` — skip the Qt GUI
 - `-DINPUTLEAP_BUILD_TESTS=OFF` — skip tests
 - `-DINPUTLEAP_BUILD_LIBEI=ON` — enable libei/Wayland support (experimental)
@@ -44,6 +45,7 @@ ctest --test-dir build -R <test_name> --verbose
 ```
 
 Test locations:
+
 - `src/test/unittests/` — unit tests (Google Test)
 - `src/test/integtests/` — integration tests (network, IPC, platform)
 - `src/gui/test/` — GUI unit tests
@@ -77,7 +79,7 @@ Test locations:
 
 ### Data Flow
 
-```
+```block
 User Input on Primary
        ↓
 Platform Layer (XWindows/OSX/MSWindows)
@@ -94,6 +96,7 @@ Injected Input Events
 ### Network Protocol
 
 Custom binary protocol (Synergy-compatible, version 1.6) over TCP port 24800:
+
 - Handshake: `HELLO` / `HELLOBACK`
 - Message codes are 4-byte identifiers (e.g., `kMsgCEnter`, `kMsgDKeyDown`)
 - Keep-alive every 3 seconds; 3 missed = disconnect
