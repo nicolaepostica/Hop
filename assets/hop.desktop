@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Hop
+Comment=Share keyboard and mouse between computers
+Exec=/home/$USER/.local/bin/hop
+Icon=~/.local/share/icons/hicolor/512x512/apps/hop.png
+Terminal=false
+Categories=Utility;Network;

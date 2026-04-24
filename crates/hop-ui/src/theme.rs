@@ -55,11 +55,11 @@ fn install_fonts(ctx: &egui::Context) {
 
     let mut style = (*ctx.style()).clone();
     style.text_styles = [
-        (TextStyle::Heading, FontId::new(22.0, FontFamily::Proportional)),
-        (TextStyle::Body, FontId::new(14.0, FontFamily::Proportional)),
-        (TextStyle::Button, FontId::new(14.0, FontFamily::Proportional)),
-        (TextStyle::Small, FontId::new(12.0, FontFamily::Proportional)),
-        (TextStyle::Monospace, FontId::new(13.0, FontFamily::Monospace)),
+        (TextStyle::Heading, FontId::new(24.0, FontFamily::Proportional)),
+        (TextStyle::Body, FontId::new(16.0, FontFamily::Proportional)),
+        (TextStyle::Button, FontId::new(16.0, FontFamily::Proportional)),
+        (TextStyle::Small, FontId::new(14.0, FontFamily::Proportional)),
+        (TextStyle::Monospace, FontId::new(15.0, FontFamily::Monospace)),
     ]
     .into();
     ctx.set_style(style);

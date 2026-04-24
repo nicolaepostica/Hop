@@ -137,36 +137,21 @@ pub fn show(ui: &mut Ui, state: &mut ServerState, shared: &mut Shared<'_>) {
             );
 
             ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui
-                    .button(format!("{} Copy", egui_phosphor::regular::COPY))
-                    .clicked()
-                {
-                    if let Some(fp) = shared.fingerprint {
-                        shared.copy(fp);
-                    }
+            if ui
+                .button(format!("{} Copy", egui_phosphor::regular::COPY))
+                .clicked()
+            {
+                if let Some(fp) = shared.fingerprint {
+                    shared.copy(fp);
                 }
-                if ui
-                    .button(format!("{} Show QR", egui_phosphor::regular::QR_CODE))
-                    .clicked()
-                {
-                    if let Some(fp) = shared.fingerprint {
-                        shared.show_qr("Your fingerprint", fp);
-                    }
-                }
-            });
+            }
         });
 
         ui.add_space(10.0);
 
         // ── Peers card (placeholder) ───────────────────────────────────
         widgets::card(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("Connected peers");
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let _ = ui.button(format!("{} Add", egui_phosphor::regular::PLUS));
-                });
-            });
+            ui.heading("Connected peers");
             ui.add_space(6.0);
             ui.label(
                 RichText::new("No clients connected yet.")

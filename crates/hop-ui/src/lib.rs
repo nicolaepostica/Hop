@@ -18,6 +18,11 @@ pub use self::identity::cert_dir;
 
 use eframe::NativeOptions;
 
+/// PNG for the taskbar / window icon, compiled into the binary.
+/// Sourced from the repository-root `assets/` directory so every
+/// packaging target (bundle, deb, msi) reads the same file.
+const ICON_PNG: &[u8] = include_bytes!("../../../assets/hop.png");
+
 /// Entry point callable from a binary (`fn main`).
 ///
 /// Creates the native window with our preferred defaults and runs the
@@ -27,11 +32,18 @@ use eframe::NativeOptions;
 /// Returns whatever `eframe::run_native` returns — typically a failure
 /// to open the native window (no display server, GPU init failed, ...).
 pub fn run() -> Result<(), eframe::Error> {
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title("Hop")
+        .with_inner_size([720.0, 640.0])
+        .with_min_inner_size([560.0, 480.0]);
+
+    match eframe::icon_data::from_png_bytes(ICON_PNG) {
+        Ok(icon) => viewport = viewport.with_icon(icon),
+        Err(err) => tracing::warn!(error = %err, "failed to decode bundled app icon"),
+    }
+
     let options = NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("Hop")
-            .with_inner_size([720.0, 640.0])
-            .with_min_inner_size([560.0, 480.0]),
+        viewport,
         ..Default::default()
     };
     eframe::run_native(

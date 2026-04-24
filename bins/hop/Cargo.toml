@@ -6,7 +6,7 @@ rust-version = { workspace = true }
 license     = { workspace = true }
 repository  = { workspace = true }
 authors     = { workspace = true }
-description = "Hop — desktop UI for Hop."
+description = "Hop — desktop UI for sharing keyboard and mouse between computers."
 
 [lints]
 workspace = true
@@ -20,3 +20,35 @@ hop-ui             = { workspace = true }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow             = { workspace = true }
+
+# Metadata consumed by `cargo-bundle` to produce .app (macOS),
+# .deb (Debian/Ubuntu) and .msi (Windows) installer artefacts.
+#
+# Install with:   cargo install cargo-bundle
+# Build with:     cargo bundle --release --bin hop
+#
+# macOS specifically wants a `.icns` icon; on first build from macOS
+# run `iconutil -c icns assets/hop.iconset` (or use `sips` to convert
+# `hop.png`) and drop the resulting `assets/hop.icns` next to the PNG.
+[package.metadata.bundle]
+name              = "Hop"
+identifier        = "com.hop.hop"
+icon              = ["../../assets/hop.icns", "../../assets/hop.png"]
+category          = "public.app-category.utilities"
+short_description = "Share keyboard and mouse between computers"
+long_description  = """
+Hop lets one keyboard and mouse control multiple computers over the
+network. Move your cursor off the edge of the screen and it jumps to
+the next machine. Secure by default with mutual TLS authentication
+and fingerprint-based peer trust.
+"""
+copyright         = "Copyright © 2026 Hop Contributors"
+osx_minimum_system_version = "11.0"
+# Debian/Ubuntu: which runtime deps the package declares. egui on X11
+# needs the usual GUI libs; Wayland users also want libxkbcommon.
+deb_depends       = [
+  "libgl1",
+  "libxcb1",
+  "libxkbcommon0",
+  "libwayland-client0",
+]

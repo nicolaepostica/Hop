@@ -6,7 +6,7 @@ rust-version = { workspace = true }
 license     = { workspace = true }
 repository  = { workspace = true }
 authors     = { workspace = true }
-description = "egui-based desktop UI for Hop (Hop)."
+description = "egui-based desktop UI for Hop."
 
 [lints]
 workspace = true
@@ -18,7 +18,6 @@ egui-phosphor = { workspace = true }
 egui-notify   = { workspace = true }
 tracing       = { workspace = true }
 arboard       = { workspace = true }
-qrcode        = { workspace = true }
 directories   = { workspace = true }
 anyhow        = { workspace = true }
 

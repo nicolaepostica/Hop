@@ -122,22 +122,10 @@ pub fn show(ui: &mut Ui, state: &mut ClientState, shared: &mut Shared<'_>) {
                     ui.end_row();
 
                     ui.label(RichText::new("Server fingerprint").color(palette::MUTED));
-                    // Right-to-left layout keeps the Scan button pinned to
-                    // the right edge; the TextEdit fills the remaining room.
-                    ui.with_layout(
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| {
-                            let _ = ui.button(format!(
-                                "{} Scan",
-                                egui_phosphor::regular::CAMERA
-                            ));
-                            ui.add_space(6.0);
-                            ui.add(
-                                egui::TextEdit::singleline(&mut state.server_fingerprint)
-                                    .hint_text("paste or scan QR")
-                                    .desired_width(f32::INFINITY),
-                            );
-                        },
+                    ui.add(
+                        egui::TextEdit::singleline(&mut state.server_fingerprint)
+                            .hint_text("paste fingerprint")
+                            .desired_width(f32::INFINITY),
                     );
                     ui.end_row();
                 });
@@ -168,24 +156,14 @@ pub fn show(ui: &mut Ui, state: &mut ClientState, shared: &mut Shared<'_>) {
             );
 
             ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui
-                    .button(format!("{} Copy", egui_phosphor::regular::COPY))
-                    .clicked()
-                {
-                    if let Some(fp) = shared.fingerprint {
-                        shared.copy(fp);
-                    }
+            if ui
+                .button(format!("{} Copy", egui_phosphor::regular::COPY))
+                .clicked()
+            {
+                if let Some(fp) = shared.fingerprint {
+                    shared.copy(fp);
                 }
-                if ui
-                    .button(format!("{} Show QR", egui_phosphor::regular::QR_CODE))
-                    .clicked()
-                {
-                    if let Some(fp) = shared.fingerprint {
-                        shared.show_qr("My fingerprint", fp);
-                    }
-                }
-            });
+            }
         });
     });
 }

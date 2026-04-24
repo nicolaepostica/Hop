@@ -14,4 +14,3 @@ Thumbs.db
 
 # Local config overrides
 .cargo/config.local.toml
-old/

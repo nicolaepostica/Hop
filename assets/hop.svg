@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7aa2f7"/>
+      <stop offset="100%" stop-color="#5a7edc"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded-square brand tile -->
+  <rect x="0" y="0" width="512" height="512" rx="96" ry="96" fill="url(#bg)"/>
+
+  <!-- Jump arc: three rising dots tracing a hop, then a filled dot at the apex -->
+  <g fill="#ffffff" opacity="0.9">
+    <circle cx="128" cy="360" r="14"/>
+    <circle cx="192" cy="312" r="14"/>
+    <circle cx="256" cy="272" r="14"/>
+  </g>
+  <!-- Apex: the "landing" — larger, accented, with a soft glow -->
+  <circle cx="336" cy="224" r="42" fill="#ffffff" filter="url(#glow)"/>
+  <!-- Inner accent dot on the landing, subtle depth -->
+  <circle cx="336" cy="224" r="16" fill="#7aa2f7"/>
+</svg>
