@@ -6,6 +6,7 @@ use egui::{RichText, Ui};
 
 use crate::app::Shared;
 use crate::theme::palette;
+use crate::util;
 use crate::widgets;
 
 /// Persistent state backing the Client view.
@@ -24,7 +25,7 @@ pub struct ClientState {
 impl Default for ClientState {
     fn default() -> Self {
         Self {
-            name: hostname_fallback(),
+            name: util::system_hostname(),
             server_addr: "192.168.1.10:25900".into(),
             server_fingerprint: String::new(),
             connected: false,
@@ -168,8 +169,3 @@ pub fn show(ui: &mut Ui, state: &mut ClientState, shared: &mut Shared<'_>) {
     });
 }
 
-fn hostname_fallback() -> String {
-    std::env::var("HOSTNAME")
-        .or_else(|_| std::env::var("COMPUTERNAME"))
-        .unwrap_or_else(|_| "this-computer".into())
-}

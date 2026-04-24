@@ -20,6 +20,9 @@ tracing       = { workspace = true }
 arboard       = { workspace = true }
 directories   = { workspace = true }
 anyhow        = { workspace = true }
+chrono            = { workspace = true }
+gethostname       = { workspace = true }
+local-ip-address  = { workspace = true }
 
 hop-net    = { workspace = true }
 hop-config = { workspace = true }

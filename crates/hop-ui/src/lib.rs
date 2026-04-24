@@ -10,6 +10,7 @@
 mod app;
 mod identity;
 mod theme;
+mod util;
 mod views;
 mod widgets;
 

@@ -494,6 +494,7 @@ Detailed milestone plan: `specs/milestones/`. In brief:
 | M10 | Windows service wrapper (`hops --service`)                          | ✅     |
 | M11 | Screen-crossing coordinator (see `milestones/M11-coordinator.md`)   | ✅     |
 | M12 | Release packaging (see `milestones/M12-release-packaging.md`)       | ✅     |
+| M13 | GUI ↔ backend wiring (see `milestones/M13-gui-backend.md`)          | planned |
 
 ## Open questions
 
