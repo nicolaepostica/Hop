@@ -20,6 +20,8 @@ Main spec: [`../architecture.md`](../architecture.md).
 | M9 | File clipboard (see [`../architecture.md#file-clipboard-m9`](../architecture.md#file-clipboard-m9)) | written when approached |
 | M10 | Windows service mode (`hops --service`) | written when approached |
 | [M13](M13-gui-backend.md) | GUI ↔ backend wiring (Start/Connect actually run the daemons) | detailed |
+| [M14](M14-tray.md) | System tray (status icon + menu, close-to-tray on Linux/Windows) | detailed |
+| M15 | First-run wizard | written when approached |
 
 ## Decomposition principles
 

@@ -235,7 +235,7 @@ specs/            design docs + per-milestone plans
   `layout.toml` atomically.
 - **Live layout reload.** IPC method so the server picks up layout
   edits without a restart.
-- **System tray + first-run wizard.**
+- **System tray** ([M14](specs/milestones/M14-tray.md)) **+ first-run wizard** (M15).
 - **Wayland parity.** Make the libei backend non-experimental.
 - **Windows service mode** (`hopd`).
 
