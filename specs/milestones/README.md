@@ -22,6 +22,9 @@ Main spec: [`../architecture.md`](../architecture.md).
 | [M13](M13-gui-backend.md) | GUI ↔ backend wiring (Start/Connect actually run the daemons) | detailed |
 | [M14](M14-tray.md) | System tray (status icon + menu, close-to-tray on Linux/Windows) | detailed |
 | M15 | First-run wizard | written when approached |
+| [M16](M16-linux-mvp.md) | Linux/X11 MVP — client injection + clipboard sync + file clipboard + tray actions (integration milestone) | detailed |
+| [M17](M17-windows-mvp.md) | Windows MVP — `WindowsScreen` real impl (Win32 SendInput + clipboard) | detailed |
+| [M18](M18-macos-mvp.md) | macOS MVP — `MacOsScreen` real impl (CGEvent + NSPasteboard + Accessibility flow) | detailed |
 
 ## Decomposition principles
 
