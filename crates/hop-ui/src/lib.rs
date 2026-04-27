@@ -11,6 +11,11 @@ mod app;
 mod identity;
 mod runtime;
 mod theme;
+// M14 commit 1 ships the tray scaffolding; reconcile/poll wiring lands
+// in commit 2. Suppress dead-code until then so CI (`-D warnings`) stays
+// green on the intermediate commit.
+#[allow(dead_code)]
+mod tray;
 mod util;
 mod views;
 mod widgets;

@@ -22,6 +22,7 @@ use hop_server::ServerConfig;
 use crate::identity;
 use crate::runtime::{BackendController, StatusEvent};
 use crate::theme::{self, palette};
+use crate::tray::Tray;
 use crate::views::{client::ClientState, server::ServerState};
 use crate::widgets;
 
@@ -273,6 +274,11 @@ pub struct HopApp {
     layout: Option<SharedLayout>,
     controller: BackendController,
     toasts: Toasts,
+    /// System tray. `None` when the platform refused construction
+    /// (no display, no D-Bus tray host, etc.) — app keeps running
+    /// without it. Wiring of menu actions to backend lands in M14
+    /// commit 2.
+    _tray: Option<Tray>,
 }
 
 impl HopApp {
@@ -336,6 +342,14 @@ impl HopApp {
             );
         }
 
+        let tray = match Tray::try_new() {
+            Ok(t) => t,
+            Err(err) => {
+                tracing::warn!(error = %err, "tray unavailable; running without it");
+                None
+            }
+        };
+
         Self {
             mode: AppMode::default(),
             server_state,
@@ -347,6 +361,7 @@ impl HopApp {
             layout,
             controller,
             toasts: Toasts::default(),
+            _tray: tray,
         }
     }
 

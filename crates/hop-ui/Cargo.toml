@@ -24,6 +24,7 @@ anyhow        = { workspace = true }
 chrono            = { workspace = true }
 gethostname       = { workspace = true }
 local-ip-address  = { workspace = true }
+tray-icon         = { workspace = true }
 
 tokio      = { workspace = true, features = ["rt-multi-thread", "sync", "time", "macros"] }
 tokio-util = { workspace = true, features = ["rt"] }
@@ -37,8 +38,12 @@ hop-client    = { workspace = true }
 hop-platform  = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-hop-platform-ei  = { workspace = true }
-hop-platform-x11 = { workspace = true }
+hop-platform-ei   = { workspace = true }
+hop-platform-x11  = { workspace = true }
+# Linux tray runs on a dedicated GTK worker thread (see specs/milestones/M14-tray.md
+# §Architecture). Match the gtk version used by tray-icon -> libappindicator (0.18).
+gtk               = "0.18"
+crossbeam-channel = { workspace = true }
 
 [target.'cfg(any(target_os = "freebsd", target_os = "openbsd"))'.dependencies]
 hop-platform-x11 = { workspace = true }

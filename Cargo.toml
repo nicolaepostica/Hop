@@ -124,6 +124,7 @@ egui-notify       = { version = "0.17" }
 arboard           = { version = "3" }
 gethostname       = { version = "0.5" }
 local-ip-address  = { version = "0.6" }
+tray-icon         = { version = "0.19", default-features = false }
 
 # --- dev-dependencies ---
 proptest       = { version = "1" }

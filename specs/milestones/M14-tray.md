@@ -50,55 +50,73 @@ The first-run wizard mentioned alongside tray in `README.md` is a separate conce
 
 | Option | Pros | Cons |
 |---|---|---|
-| **A. Run the tray on a dedicated background thread with its own `tao::EventLoop`** | Zero coupling with eframe internals. eframe upgrades cannot break us. Works the same on all three OSes. | One extra thread. Cross-thread channel from tray → app needed for menu actions. macOS requires the tray to be created on the main thread (NSStatusBar is main-thread-only) — this option **breaks on macOS**. |
-| **B. Create the tray on the main thread inside `HopApp::new`, pump tray events from `update`** | macOS-correct (NSStatusBar lives on main thread). One event loop conceptually. Direct access to `BackendController` without channels. | Couples our timing to `egui::Context::request_repaint`. If the window is closed and eframe sleeps, tray menu clicks might not be polled. Need to schedule a periodic repaint while a tray exists. |
+| **A. Run the tray on a dedicated background thread with its own native event loop** | Linux-correct: tray-icon needs a running GTK loop on the same thread that owns the icon — eframe does not run one. macOS-broken: `NSStatusBar` is main-thread-only and would crash there. | Cross-thread channel needed. |
+| **B. Create the tray on the main thread, pump tray events from `update`** | macOS-correct. Windows-correct (winit pumps a Win32 message loop on the main thread, which `tray-icon` piggybacks on). Direct access to `BackendController`. | Linux-broken: tray-icon's Linux backend (libappindicator + GTK) requires a real GTK main loop, which eframe never starts. Menu clicks would never fire. |
 
-**Decision: Option B with a hidden window.** macOS forces our hand. To work around eframe sleeping when the window is hidden:
+**Decision: per-OS topology — main thread on macOS / Windows, dedicated GTK thread on Linux.**
 
-- Keep eframe alive even when the user clicks Close — instead of letting `Frame::close()` run, set `state.window_visible = false` and hide the viewport via `ViewportCommand::Visible(false)`. eframe keeps spinning, the OS hides the window.
-- Drive `tray-icon`'s native event channel from `HopApp::update`: each frame calls `TrayIconEvent::receiver().try_iter()` and `MenuEvent::receiver().try_iter()`, dispatching matched events to the controller.
+The "right shape" is dictated by `tray-icon`'s own platform backends:
+
+- **macOS** (`NSStatusItem`): main-thread-only. eframe's `winit` loop drives `NSRunLoop`; `tray-icon` events are delivered through that loop. Use Option B.
+- **Windows** (`Shell_NotifyIcon` + per-thread hidden window): any thread that pumps Win32 messages works; eframe on the main thread already does. Use Option B.
+- **Linux** (`libappindicator` over D-Bus, glued through GTK): tray-icon explicitly requires `gtk::init()` + a live `gtk::main()` loop on the same thread that owns the `TrayIcon`. eframe (winit + glow) does not run a GTK loop. Use Option A: spawn a worker thread that calls `gtk::init()`, builds the tray, and runs `gtk::main()`. The worker owns the `TrayIcon` for its full lifetime; egui talks to it via two `crossbeam_channel`s (commands in, events out). Closing the app sends a `Shutdown` command and the worker calls `gtk::main_quit()`.
+
+This matches how Tauri itself drives `tray-icon` and is exactly the topology the upstream README warns is required. Implementation lives in `crates/hop-ui/src/tray/{mod.rs, backend_main.rs, backend_gtk.rs}` with `cfg`-gated dispatch.
+
+To keep the eframe loop responsive while the window is hidden (so the egui side of the tray events keeps draining):
+
+- Keep eframe alive when the user clicks Close — instead of letting the viewport close, set `state.window_visible = false` and hide the viewport via `ViewportCommand::Visible(false)`. eframe keeps spinning, the OS hides the window.
+- On macOS / Windows: drain `TrayIconEvent::receiver()` and `MenuEvent::receiver()` from `HopApp::update` each frame.
+- On Linux: drain the worker's outbound `crossbeam_channel<TrayCommand>` from `HopApp::update`. The worker thread translates native events into `TrayCommand`s before sending.
 - Request a low-rate repaint (e.g. `ctx.request_repaint_after(Duration::from_millis(250))`) so the loop keeps pumping at 4 Hz when the window is hidden. Drops to ~0.05% CPU in our prototype.
 
 ### Runtime topology
 
 ```
-┌────── GUI thread (eframe / winit, never exits while app runs) ──────┐
-│                                                                      │
-│   HopApp                                                             │
-│   ├─ window_visible: bool                                            │
-│   ├─ BackendController     ──── from M13                             │
-│   ├─ Tray                  ──── new in M14                           │
-│   │   ├─ icon: TrayIcon                                              │
-│   │   ├─ menu: Menu                                                  │
-│   │   ├─ items: TrayMenuItems  (handles for enable/disable)          │
-│   │   └─ icons: TrayIcons      (Idle / Server / Client variants)     │
-│   ├─ Toasts                                                          │
-│   └─ Shared { … }                                                    │
-│                                                                      │
-│   update():                                                          │
-│     1. drain BackendController status events                         │
-│     2. drain TrayIconEvent::receiver()  → ShowWindow / Toggle        │
-│     3. drain MenuEvent::receiver()       → Start / Stop / Quit / …   │
-│     4. reconcile tray icon + status header from controller state     │
-│     5. request_repaint_after(250 ms)                                 │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
+            macOS / Windows                            Linux
+   ┌──────────── main thread ──────────┐    ┌──────── main thread ────────┐
+   │                                    │    │                              │
+   │  HopApp (eframe)                   │    │  HopApp (eframe)             │
+   │  ├─ Tray { TrayIcon, Menu, … }     │    │  ├─ TrayHandle               │
+   │  └─ update():                      │    │  │   ├─ cmd_tx: Sender<…>    │
+   │       drain MenuEvent::receiver()  │    │  │   ├─ evt_rx: Receiver<…>  │
+   │       drain TrayIconEvent::recv()  │    │  │   └─ join: JoinHandle<()> │
+   │       reconcile()                  │    │  └─ update():                │
+   │                                    │    │       drain evt_rx           │
+   └────────────────────────────────────┘    │       send reconcile() cmds  │
+                                              └──────────────┬───────────────┘
+                                                             │
+                                                  ┌──────────┴──────────────┐
+                                                  │   GTK worker thread     │
+                                                  │   gtk::init()           │
+                                                  │   build TrayIcon + Menu │
+                                                  │   gtk::main()           │
+                                                  │   on idle: drain cmd_rx,│
+                                                  │     handle Reconcile /  │
+                                                  │     Shutdown            │
+                                                  │   on menu/icon event:   │
+                                                  │     evt_tx.send(cmd)    │
+                                                  └─────────────────────────┘
 ```
 
 ### `Tray` module
 
-Lives in `crates/hop-ui/src/tray/mod.rs` plus:
+The public surface is the same on every OS — only the implementation behind it differs. Lives in `crates/hop-ui/src/tray/`:
 
-- `tray/icons.rs` — load PNGs for the three states from embedded bytes (`include_bytes!`), pre-decoded at startup.
-- `tray/menu.rs` — build the menu, return strongly-typed `MenuItemId`s so `update` can match against them.
+- `tray/mod.rs` — `Tray` enum-wrapper that hides the per-OS backend; `TrayState`, `TrayCommand`, `TrayError` types.
+- `tray/icons.rs` — load PNGs for the three states from embedded bytes (`include_bytes!`), pre-decoded into `tray_icon::Icon` once at construction time.
+- `tray/menu.rs` — build the `Menu` + `TrayMenuItems` handles. Returns strongly-typed `MenuId`s so the dispatcher can match against them. Used by both backends.
+- `tray/backend_main.rs` — *macOS / Windows* backend. Owns `tray_icon::TrayIcon` directly on the eframe main thread.
+- `tray/backend_gtk.rs` — *Linux* backend. Spawns a worker thread that calls `gtk::init()`, builds the tray, runs `gtk::main()`. Communicates with the main thread via two `crossbeam_channel`s.
 
 ```rust
-pub struct Tray {
-    icon: tray_icon::TrayIcon,
-    menu_items: TrayMenuItems,
-    icons: TrayIcons,
-    last_state: TrayState,
-}
+pub struct Tray { backend: Backend }
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+type Backend = backend_main::MainThreadTray;
+
+#[cfg(target_os = "linux")]
+type Backend = backend_gtk::GtkWorkerHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrayState {
@@ -124,15 +142,18 @@ struct TrayIcons {
 }
 
 impl Tray {
-    /// Construct on the main thread. Returns `Ok(None)` if the platform
-    /// reports tray is unavailable (e.g. no StatusNotifier on Wayland).
+    /// Construct. Returns `Ok(None)` if the platform reports the tray
+    /// is unavailable (e.g. no StatusNotifierWatcher on a Wayland-only
+    /// session, no D-Bus, gtk::init failure).
     pub fn try_new() -> Result<Option<Self>, TrayError>;
 
     /// Apply backend state to the tray (icon + label + enabled flags).
-    /// Idempotent — called every frame, no-op when `state == self.last_state`.
+    /// Idempotent — no-op when `state == previous`.
     pub fn reconcile(&mut self, state: TrayState, mode_locked: bool, mode: AppMode);
 
     /// Drain native menu/icon events into a vector the app can match on.
+    /// On macOS/Windows: drains `MenuEvent::receiver()` directly.
+    /// On Linux: drains the worker thread's outbound `crossbeam_channel`.
     pub fn poll(&self) -> Vec<TrayCommand>;
 }
 
@@ -145,6 +166,66 @@ pub enum TrayCommand {
     Quit,
 }
 ```
+
+#### Linux GTK worker — protocol
+
+```rust
+// crates/hop-ui/src/tray/backend_gtk.rs (sketch)
+
+enum WorkerCmd {
+    Reconcile { state: TrayState, mode_locked: bool, mode: AppMode },
+    Shutdown,
+}
+
+pub struct GtkWorkerHandle {
+    cmd_tx:  crossbeam_channel::Sender<WorkerCmd>,
+    evt_rx:  crossbeam_channel::Receiver<TrayCommand>,
+    join:    Option<std::thread::JoinHandle<()>>,
+}
+
+fn worker_main(cmd_rx: Receiver<WorkerCmd>, evt_tx: Sender<TrayCommand>) {
+    if let Err(e) = gtk::init() { /* send TrayError back via a oneshot */ return; }
+
+    let icons = TrayIcons::load();
+    let (menu, items) = menu::build();
+    let tray = TrayIconBuilder::new()
+        .with_menu(Box::new(menu))
+        .with_icon(icons.idle.clone())
+        .with_tooltip("Hop")
+        .build()
+        .expect("tray icon");
+
+    // Forward muda menu events into our outbound channel.
+    let evt_tx_menu = evt_tx.clone();
+    tray_icon::menu::MenuEvent::set_event_handler(Some(move |ev: MenuEvent| {
+        if let Some(cmd) = items.dispatch(&ev.id) {
+            let _ = evt_tx_menu.send(cmd);
+        }
+    }));
+    let evt_tx_icon = evt_tx.clone();
+    tray_icon::TrayIconEvent::set_event_handler(Some(move |ev| {
+        if let Some(cmd) = TrayCommand::from_icon_event(&ev) {
+            let _ = evt_tx_icon.send(cmd);
+        }
+    }));
+
+    // Pump cmd_rx via gtk::glib::idle_add_local — runs on the GTK loop.
+    glib::idle_add_local(move || {
+        match cmd_rx.try_recv() {
+            Ok(WorkerCmd::Reconcile { .. })  => { /* set_icon + label + enabled */ }
+            Ok(WorkerCmd::Shutdown)          => { gtk::main_quit(); return ControlFlow::Break; }
+            Err(TryRecvError::Empty)         => {}
+            Err(TryRecvError::Disconnected)  => { gtk::main_quit(); return ControlFlow::Break; }
+        }
+        ControlFlow::Continue
+    });
+
+    gtk::main();
+    drop(tray);
+}
+```
+
+`Drop for GtkWorkerHandle` sends `Shutdown` and joins the worker. Failure to join within 1 s is logged and detached — never block app exit.
 
 ### Wiring into `HopApp`
 
@@ -345,7 +426,9 @@ The `egui_kittest` harness mentioned in M13 is not useful here — `tray-icon` c
 
 - **`tray-icon` API churn.** The crate is pre-1.0 and has had breaking renames in the recent past. Pin a single minor version in `Cargo.toml`; revisit on each release dry-run.
 - **Wayland fragmentation.** GNOME Wayland without the AppIndicator extension is the single largest deployment of "Linux desktop with no tray". The `--no-tray` fallback covers it but UX regresses (close = exit). Document loudly; revisit when a portal-based standard arrives.
-- **Main-thread invariant on macOS.** NSStatusBar API must be called from the main thread. `tray-icon` enforces this with a runtime panic in debug builds. Make sure no helper thread ever touches `Tray`.
+- **Main-thread invariant on macOS / Windows.** `NSStatusBar` is main-thread-only on macOS; `Shell_NotifyIcon` needs a thread that pumps Win32 messages. The eframe main thread is correct for both — assert this with a `debug_assert!(is_main_thread())` in `MainThreadTray::new`.
+- **GTK loop ownership on Linux.** The worker thread must call `gtk::init()` exactly once per process — calling it twice panics. Guard with `std::sync::Once`. The worker also owns the `TrayIcon` for its full lifetime; any cross-thread access would race the GTK main loop. The handle on the main thread holds only channel ends, never the `TrayIcon` itself.
+- **Worker thread crashes.** If the GTK worker panics, the channels disconnect; the main thread detects the disconnect on next `poll()`, logs once, and runs the rest of the session without a tray (graceful degradation, identical to "tray unavailable").
 - **Background CPU.** A 250 ms repaint timer keeps `update` running while the window is hidden. On a quiet day this draws ~0.05% CPU on our test box, but on slow ARM laptops the `egui` redraw cost matters. Add a coarse benchmark in `xtask` (`cargo xtask bench-tray`) that asserts < 0.5% CPU over 60 s on the CI runner.
 - **Icon scaling on HiDPI.** Windows expects 16×16 *and* 32×32 in the same `.ico`; macOS expects an `@2x` paired image. Capture this in `scripts/gen-icons.sh` so a fresh checkout produces all variants.
 - **Testing.** The unit tests above are real, but the bulk of confidence comes from the manual matrix. Build a checklist into the release runbook so the matrix is not skipped under deadline pressure.
@@ -353,7 +436,7 @@ The `egui_kittest` harness mentioned in M13 is not useful here — `tray-icon` c
 ## Resolved / deferred decisions
 
 1. **Tray library.** Resolved: `tray-icon`. Considered `tray-item-rs` (older, no Wayland AppIndicator pathway) and `ksni` (Linux-only). `tray-icon` covers all three OSes and ships with menu support.
-2. **Process model for the tray.** Resolved: same process as the GUI / backend (Option B above). macOS forces this.
+2. **Process model for the tray.** Resolved: same process as the GUI / backend. **Thread model is per-OS:** macOS / Windows on the eframe main thread, Linux on a dedicated GTK worker thread (single-thread-of-truth for the `TrayIcon`). Driven by `tray-icon`'s own backend constraints, not preference.
 3. **Close-to-tray default.** Resolved: on by default for Linux + Windows; macOS keeps native window behaviour. Override via `[gui] close_to_tray = "always" | "never" | "auto"` (auto = current rule).
 4. **First-run wizard.** Deferred to **M15**.
 5. **Notifications.** Deferred. The in-app toast covers everything while the window is open; the tray covers the rest while it is closed. Adding `notify-rust` is a small follow-up if users ask for it.
